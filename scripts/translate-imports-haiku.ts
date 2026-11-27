@@ -27,6 +27,7 @@ import { mkdirSync, renameSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { db } from '../src/lib/db'
+import { NOT_NEW_APPLE } from '../src/lib/new-apple'
 import { tombstonePdps } from '../src/lib/pdp-tombstone'
 import { factLines, isVietnamese, judge, modelText, planOf, sourceRefusal, titleForModel, TBH_TOKEN, viOf, type Row } from '../src/lib/import-translation'
 
@@ -83,7 +84,9 @@ async function main() {
   const seller = await db.seller.findUnique({ where: { id: SELLER_ID }, select: { id: true, name: true } })
   if (!seller) { console.error(`no storefront ${SELLER_ID}`); process.exit(1) }
   // IMPORTED rows only (externalId set — commit gate, codex): a listing a person wrote on this storefront is never sent or rewritten.
-  const all = await db.listing.findMany({ where: { sellerId: seller.id, externalId: { not: null } }, select: { id: true, title: true, description: true, titleVi: true, descriptionVi: true }, orderBy: { id: 'asc' } })
+  // ⛔ Never a `new:` row (src/lib/new-apple.ts): its English is written by code at import, and the prompts below are for USED
+  // goods ("99% like-new") — sent through them, a sealed new iPhone would come back described as second-hand.
+  const all = await db.listing.findMany({ where: { sellerId: seller.id, externalId: { not: null }, ...NOT_NEW_APPLE }, select: { id: true, title: true, description: true, titleVi: true, descriptionVi: true }, orderBy: { id: 'asc' } })
   if (RECHECK) return recheck(seller, all)
   const wanting = all.filter((r) => isVietnamese(r.title) || isVietnamese(r.description))
   // A row whose SOURCE wording is not in the table is never sent (no tokens spent on an answer that would be refused).
@@ -118,7 +121,7 @@ async function main() {
       const res = await db.listing.updateMany({
         // Re-states the scope it was selected under (commit gate, codex) and the Vietnamese it was translated FROM (round 12,
         // codex): a corrected source is never paired with English made from the old one.
-        where: { id: r.id, sellerId: seller.id, externalId: { not: null }, title: r.title, description: r.description, titleVi: r.titleVi, descriptionVi: r.descriptionVi },
+        where: { id: r.id, sellerId: seller.id, externalId: { not: null }, ...NOT_NEW_APPLE, title: r.title, description: r.description, titleVi: r.titleVi, descriptionVi: r.descriptionVi },
         data: { ...out, ...(r.titleVi ? {} : { titleVi: r.title }), ...(r.descriptionVi ? {} : { descriptionVi: r.description }) },
       })
       // The id is recorded BEFORE the journal is touched again (round 15, codex): a journal write that throws must not keep a
@@ -185,7 +188,7 @@ async function recheck(seller: { id: string; name: string }, all: Row[]) {
     for (const p of plan) {
       journal.add({ id: p.id, why: p.why, from: { title: p.from.title, description: p.from.description, titleVi: p.from.titleVi, descriptionVi: p.from.descriptionVi }, to: p.to })
       const res = await db.listing.updateMany({
-        where: { id: p.id, sellerId: seller.id, externalId: { not: null }, title: p.from.title, description: p.from.description, titleVi: p.from.titleVi, descriptionVi: p.from.descriptionVi },
+        where: { id: p.id, sellerId: seller.id, externalId: { not: null }, ...NOT_NEW_APPLE, title: p.from.title, description: p.from.description, titleVi: p.from.titleVi, descriptionVi: p.from.descriptionVi },
         data: p.to,
       })
       if (res.count === 1) { written++; ids.push(p.id) } else raced++

@@ -502,6 +502,8 @@ export function HelpCenter({ data, i18n }: { data: HelpCenterData; i18n?: HelpI1
       {/* "ask anything that is missing" JUMPS TO "Still need help?" (UI climb 2026-11-09, phone UX hunt): since the support bubble
           left phones (owner, 2026-11-08) the support chat sits at the very end of this page, two screens of answers below an
           intro that invited questions with no way to ask one. Same words, same place; the escalation itself stays last. */}
+      {/* sr-only "In brief" over the lede: the same heading, and the same reason, as ContentPage's (content-page.tsx). */}
+      <h2 className="sr-only"><Bilingual en="In brief" vi="Tóm tắt" /></h2>
       <p className="mt-4 max-w-[70ch] text-base leading-relaxed text-body">
         {/* Two whole sentences, never a sentence cut at the link (commit review): the nine machine-translated languages translate
             each string on its own, and a fragment ending "…, and" read as a broken sentence in a language with another word order. */}

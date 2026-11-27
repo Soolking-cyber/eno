@@ -231,8 +231,8 @@
               "text": "Mỗi thẻ ghi giá chào thuê theo tháng, diện tích m², phường hoặc tòa nhà và thời gian đã đăng. Hãy so giá với bảng theo số phòng ngủ ở trên."
             },
             {
-              "title": "Hỏi căn còn trống không",
-              "text": "Nút Check availability nhờ đội eno kiểm tra giúp xem căn nhà còn trống không. Ngày 24/11/2026, mỗi lần kiểm tra được tối đa 5 căn. Tin có nhãn Official partner đến từ GoPlus, một đối tác chính thức của eno.vn, và GoPlus trả lời trực tiếp trong khung chat eno.vn."
+              "title": "Nhắn tin hỏi căn còn trống không",
+              "text": "Muốn biết căn còn trống không, bạn hãy nhắn tin cho chủ nhà, môi giới hoặc đối tác qua chat trên eno.vn. Tin có nhãn Official partner đến từ GoPlus, một đối tác chính thức của eno.vn, và GoPlus tự trả lời tin nhắn về các tin của mình trong khung chat eno.vn. Với tin liên kết, nút trên tin sẽ mở tin gốc ở trang nguồn, nơi bạn hỏi trực tiếp người đăng."
             }
           ]
         },
@@ -426,5 +426,5 @@
     "cost-of-living-in-ho-chi-minh-city-for-teachers",
     "is-ho-chi-minh-city-safe"
   ],
-  "lastChecked": "2026-11-24"
+  "lastChecked": "2026-11-26"
 }

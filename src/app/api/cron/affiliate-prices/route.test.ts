@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+// The new-Apple backstop (src/lib/new-apple-night.ts) reads its own rows; this suite's fake db would hand it the used fixtures.
+vi.mock('@/lib/new-apple-night', () => ({ sellStaleNewApple: async () => ({ staleNewApple: 0 }) }))
 
 // The affiliate-prices cron's RESTORE (sold → active) is screened (2026-10-01): a banned row is not
 // restored and is hidden, an ambiguous one is restored and reported, and a tombstone ('removed') is

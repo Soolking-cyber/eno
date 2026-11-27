@@ -17,13 +17,14 @@ import type { PriceRow } from './lowest-prices'
  *
  * ⚠️ AN AggregateOffer, BECAUSE THIS PAGE SELLS NOTHING. Google's merchant-listing docs: "merchant
  * listings require an Offer as the merchant has to be the seller"; product snippets accept an
- * AggregateOffer. The sellers are the shops and people behind each listing — so this node summarises
+ * AggregateOffer. The sellers are the shops behind each listing — so this node summarises
  * their offers rather than claiming one.
  *
- * ⛔ SECOND-HAND ONLY, SINCE 2026-10-03 (lowest-prices.ts): the node carries `itemCondition: UsedCondition`
- * on the Product AND the offer, and is built only from rows that say `condition: 'used'` — the contract
- * is checked here, not assumed, so a future caller passing new-stock rows publishes nothing rather than a
- * new phone marked used.
+ * ⛔ ONE CONDITION, SINCE 2026-11-26. From 2026-10-03 the node said `UsedCondition` and published nothing for a row that was
+ * not used. A model page now quotes TWO tables — new units from three shops above, second-hand ones below (lowest-prices.ts
+ * `lowestNewPrices` / `lowestPrices`) — and the page publishes ONE Product: the new rows' when there are any, else the used
+ * rows', each with its own itemCondition (see modelProductLd). Two Products on a page about one model is the shape Google's
+ * guidance rules out (above).
  */
 
 /** Same origin rule as the breadcrumb beside it: absolute URLs inside JSON-LD, never relative. */
@@ -36,20 +37,28 @@ function absoluteImage(src: string): string | null {
   return null
 }
 
-const USED = 'https://schema.org/UsedCondition'
+/**
+ * `rows` = BOTH tables' rows, as the page renders them (new first, then used). Every one is a live, verified, in-stock listing
+ * of `cfg.model` that passed the price guard.
+ * ⛔ ONE CONDITION PER NODE (commit gate round 6, opus): a mixed AggregateOffer with no condition let a used unit's price be the
+ * snippet's "from" on a page about a new model. So the node describes the NEW rows when the page has any (NewCondition), and
+ * otherwise the second-hand ones (UsedCondition, as before 2026-11-26) — never both, and always says which.
+ */
+const CONDITION_URL = { new: 'https://schema.org/NewCondition', used: 'https://schema.org/UsedCondition' } as const
 
 export function modelProductLd(
   cfg: Pick<ModelPageConfig, 'model' | 'slug' | 'intro'>,
-  rows: PriceRow[],
+  allRows: PriceRow[],
 ): Record<string, unknown> | null {
+  const condition = allRows.some((r) => r.condition === 'new') ? 'new' : 'used'
+  const rows = allRows.filter((r) => r.condition === condition)
   /**
    * ⚠️ `priceCurrency` IS ONE CURRENCY FOR ALL ROWS, so a row in another one publishes nothing
    * rather than a wrong minimum. `lowestPrices` already selects đồng rows only; this makes the node
    * depend on that contract visibly instead of silently.
    */
   if (rows.length === 0 || rows.some((r) => r.currency !== '₫')) return null
-  // ⛔ Every row second-hand, or no node: `itemCondition` below is a claim about all of them.
-  if (rows.some((r) => r.condition !== 'used')) return null
+  // The floor of the node's own rows, the first such row on a tie (the table's order).
   const floor = rows.reduce((a, b) => (b.price < a.price ? b : a))
   /**
    * ⛔ NO IMAGE, NO Product. Search Console's first complaint about these pages was a Product
@@ -71,12 +80,18 @@ export function modelProductLd(
     description: cfg.intro,
     image,
     brand: { '@type': 'Brand', name: 'Apple' },
-    itemCondition: USED,
+    itemCondition: CONDITION_URL[condition],
     url: `${ORIGIN}/${cfg.slug}`,
     offers: {
       '@type': 'AggregateOffer',
-      itemCondition: USED,
+      itemCondition: CONDITION_URL[condition],
       lowPrice: floor.price,
+      /**
+       * ⚠️ THE TOP OF THE SAME LISTINGS `offerCount` COUNTS — each row's `ceiling` (the dearest of its tier's guarded listings),
+       * not the largest cell the table prints. Before 2026-11-26 this node carried no `highPrice` at all, because a table of
+       * tier FLOORS has no ceiling in it; the rows now carry one, so low, high and count describe one set of offers.
+       */
+      highPrice: Math.max(...rows.map((r) => r.ceiling)),
       priceCurrency: 'VND',
       /**
        * ⚠️ THE SAME SUM THE TABLE PRINTS AS "N listings" (`PriceTable`'s `offers`), not the number
@@ -84,11 +99,8 @@ export function modelProductLd(
        */
       offerCount: rows.reduce((n, r) => n + r.offers, 0),
       /**
-       * ⚠️ NO `highPrice`. The table shows the LOWEST price per tier, so its largest cell is not the
-       * highest offer on the marketplace; publishing it would state a ceiling nobody measured.
-       *
-       * ⚠️ IN STOCK, ALWAYS. The PreOrder branch went with the new-retail rows (2026-10-03): a second-hand
-       * unit exists only once someone owns one, so a live used listing is stock by definition.
+       * ⚠️ IN STOCK, ALWAYS. Both tables read live, verified, active listings only: a second-hand unit exists only once someone
+       * owns one, and a new row is the shop's own active listing of a unit it sells (src/lib/new-apple.ts).
        */
       availability: 'https://schema.org/InStock',
     },

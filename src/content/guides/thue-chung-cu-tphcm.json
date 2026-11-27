@@ -1,0 +1,422 @@
+{
+  "slug": "thue-chung-cu-tphcm",
+  "title": "Thuê chung cư TP.HCM: giá theo khu vực, cách tìm (2026)",
+  "description": "Giá thuê chung cư TP.HCM theo quận ngày 26/11/2026, cách lọc theo khu vực và giá, nhắn tin hỏi căn còn trống trước khi đi xem, thuê ở Hóc Môn và chung cư cũ.",
+  "h1": "Thuê chung cư ở TP.HCM: giá từng khu vực, cách lọc tin và nhắn tin hỏi căn còn trống trước khi đi xem",
+  "eyebrow": "Thuê nhà TP.HCM",
+  "intro": "Muốn thuê chung cư ở TP.HCM, bạn lọc tin theo khu vực và mức giá, so với giá trung vị của eno.vn Rent Index ngày 26/11/2026, rồi nhắn tin hỏi chủ nhà hoặc môi giới xem căn còn trống không trước khi đi xem. Giá chênh nhau nhiều giữa các khu. Bình Tân, Hóc Môn, Nhà Bè và Bình Chánh rẻ nhất, còn Quận 2 và Quận 1 đắt nhất. Hợp đồng thuê phải lập thành văn bản nhưng không bắt buộc công chứng.",
+  "keyPoints": [
+    "Theo eno.vn Rent Index ngày 26/11/2026, giá chào thuê trung vị của căn một phòng ngủ là {{vnd:6600000}} ở Gò Vấp, {{vnd:9000000}} ở Bình Thạnh và {{vnd:23000000}} ở Quận 1.",
+    "Rent Index đo **giá chào thuê** của các tin đăng trên eno.vn, không phải giá đã ký hợp đồng. Bạn nên coi đó là mốc để trả giá.",
+    "Theo eno.vn Rent Index ngày 26/11/2026, Hóc Môn có 88 tin căn hộ, chỉ 1 tin là căn một phòng ngủ, còn lại là studio và phòng duplex. Giá chào thuê trung vị là {{vnd:3400000}} một tháng.",
+    "Từ 01/7/2025, huyện Hóc Môn cũ được chia thành 4 xã: Hóc Môn, Bà Điểm, Xuân Thới Sơn và Đông Thạnh. Hợp đồng thuê nên ghi địa chỉ theo tên xã, phường mới.",
+    "Theo Luật Nhà ở 2023, hợp đồng thuê nhà ở phải lập thành văn bản nhưng không bắt buộc công chứng, trừ khi hai bên muốn công chứng."
+  ],
+  "sections": [
+    {
+      "id": "gia-thue-chung-cu-theo-khu-vuc",
+      "title": "Thuê chung cư ở TP.HCM giá bao nhiêu theo từng khu vực?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Theo eno.vn Rent Index ngày 26/11/2026, giá chào thuê trung vị của căn hộ dao động từ {{vnd:3000000}} một tháng ở Bình Tân đến {{vnd:33500000}} ở Quận 2. Mức cụ thể còn tùy diện tích và số phòng ngủ. [eno.vn Rent Index](/hcmc-rent-index) do eno.vn tính, lấy giá chào thuê trung vị của các căn cho thuê đăng trên eno.vn, chia theo quận và loại nhà. Chỉ số này được cập nhật thường xuyên, và trang chỉ số ghi rõ nguồn của từng bản."
+        },
+        {
+          "type": "table",
+          "caption": "Giá chào thuê trung vị một tháng theo eno.vn Rent Index, bản ngày 26/11/2026. Dấu “–” nghĩa là khu vực có dưới 10 tin, chưa đủ để công bố.",
+          "headers": [
+            "Khu vực (tên cũ)",
+            "Tất cả căn hộ",
+            "Studio",
+            "1 phòng ngủ",
+            "2 phòng ngủ"
+          ],
+          "rows": [
+            [
+              "Toàn thành phố",
+              "{{vnd:4800000}}",
+              "{{vnd:4300000}}",
+              "{{vnd:9400000}}",
+              "{{vnd:23000000}}"
+            ],
+            [
+              "Quận 1",
+              "{{vnd:23000000}}",
+              "{{vnd:6500000}}",
+              "{{vnd:23000000}}",
+              "{{vnd:35000000}}"
+            ],
+            [
+              "Quận 2 (Thủ Đức)",
+              "{{vnd:33500000}}",
+              "–",
+              "{{vnd:24900000}}",
+              "{{vnd:30000000}}"
+            ],
+            [
+              "Quận 3",
+              "{{vnd:8200000}}",
+              "{{vnd:6400000}}",
+              "{{vnd:10800000}}",
+              "–"
+            ],
+            [
+              "Quận 4",
+              "{{vnd:20100000}}",
+              "{{vnd:7200000}}",
+              "{{vnd:13900000}}",
+              "{{vnd:22800000}}"
+            ],
+            [
+              "Quận 7 (Phú Mỹ Hưng)",
+              "{{vnd:14000000}}",
+              "{{vnd:5400000}}",
+              "{{vnd:15000000}}",
+              "{{vnd:16800000}}"
+            ],
+            [
+              "Quận 9 (Thủ Đức)",
+              "{{vnd:14100000}}",
+              "–",
+              "–",
+              "{{vnd:14100000}}"
+            ],
+            [
+              "Quận 10",
+              "{{vnd:7300000}}",
+              "{{vnd:6500000}}",
+              "{{vnd:9000000}}",
+              "{{vnd:12900000}}"
+            ],
+            [
+              "Bình Thạnh",
+              "{{vnd:6300000}}",
+              "{{vnd:5800000}}",
+              "{{vnd:9000000}}",
+              "{{vnd:11800000}}"
+            ],
+            [
+              "Phú Nhuận",
+              "{{vnd:5600000}}",
+              "{{vnd:5300000}}",
+              "{{vnd:8000000}}",
+              "{{vnd:10000000}}"
+            ],
+            [
+              "Tân Bình",
+              "{{vnd:6000000}}",
+              "{{vnd:5500000}}",
+              "{{vnd:7500000}}",
+              "{{vnd:10500000}}"
+            ],
+            [
+              "Gò Vấp",
+              "{{vnd:4900000}}",
+              "{{vnd:4800000}}",
+              "{{vnd:6600000}}",
+              "{{vnd:7800000}}"
+            ],
+            [
+              "Tân Phú",
+              "{{vnd:4000000}}",
+              "{{vnd:3900000}}",
+              "{{vnd:7000000}}",
+              "–"
+            ],
+            [
+              "Quận 12",
+              "{{vnd:4100000}}",
+              "{{vnd:4000000}}",
+              "{{vnd:5800000}}",
+              "–"
+            ],
+            [
+              "Bình Tân",
+              "{{vnd:3000000}}",
+              "{{vnd:3000000}}",
+              "–",
+              "–"
+            ],
+            [
+              "Bình Chánh",
+              "{{vnd:3900000}}",
+              "{{vnd:2700000}}",
+              "–",
+              "–"
+            ],
+            [
+              "Hóc Môn",
+              "{{vnd:3400000}}",
+              "{{vnd:3400000}}",
+              "–",
+              "–"
+            ],
+            [
+              "Nhà Bè",
+              "{{vnd:3600000}}",
+              "{{vnd:3000000}}",
+              "–",
+              "{{vnd:16700000}}"
+            ],
+            [
+              "TP Thủ Đức",
+              "{{vnd:20600000}}",
+              "{{vnd:4200000}}",
+              "{{vnd:24100000}}",
+              "{{vnd:28800000}}"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Vì sao cột “tất cả căn hộ” có lúc cao hơn căn 2 phòng ngủ?"
+        },
+        {
+          "type": "p",
+          "text": "Cột “tất cả căn hộ” gộp mọi loại căn được đăng, từ studio đến căn 3 phòng ngủ trở lên. Vì vậy con số này nghiêng về loại căn có nhiều tin nhất ở khu đó. Ở Quận 2, nhiều căn lớn được đăng nên trung vị chung ngày 26/11/2026 cao hơn cả căn 2 phòng ngủ. Ở Bình Tân hay Hóc Môn thì ngược lại, studio chiếm gần hết số tin."
+        },
+        {
+          "type": "p",
+          "text": "Trang Rent Index ghi rằng các con số là **giá chào thuê**, không phải giá trên hợp đồng đã ký. Bản ngày 26/11/2026 tính mọi tin có giá từ {{vnd:1000000}} đến {{vnd:500000000}} một tháng, không cắt bỏ giá cao hay thấp. Khoảng diện tích 5–2.000 m² và giá {{vnd:10000}}–{{vnd:2000000}} mỗi m² chỉ dùng để tính giá mỗi m². Từ 21/10/2026, studio và duplex được tách thành nhóm riêng, nên số liệu căn một phòng ngủ trước ngày đó không so sánh được với số liệu hiện nay. Tin Quận 2 và Quận 9 cũ được tính cả ở dòng riêng lẫn dòng TP Thủ Đức. Bảng chi tiết hơn cho từng quận có trong bài [giá thuê nhà TP.HCM theo quận](/huong-dan/gia-thue-nha-tphcm-theo-quan)."
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Tên quận cũ và địa chỉ mới",
+          "text": "Từ 01/7/2025, TP.HCM không còn cấp quận, huyện. Địa chỉ chính thức nay dùng tên phường, xã mới. Tin đăng và Rent Index vẫn dùng tên quận cũ như “Quận 7” hay “Bình Thạnh” cho dễ tìm. Khi ký hợp đồng, bạn nên ghi đúng tên phường, xã mới. Nếu chưa chọn được khu vực, bài [các quận TP.HCM nên thuê nhà ở đâu](/huong-dan/cac-quan-tphcm-nen-thue-nha-o-dau) so sánh từng khu."
+        }
+      ]
+    },
+    {
+      "id": "cach-tim-can-ho-chung-cu",
+      "title": "Cách tìm căn hộ chung cư: lọc khu vực, giá và hỏi căn còn trống",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Cách nhanh nhất là lọc theo khu vực, đặt khoảng giá theo mức trung vị ở trên, rồi nhắn tin hỏi căn còn trống không trước khi đi xem. Trang [Cho thuê nhà](/c/rentals) của eno.vn có trang riêng cho từng khu vực, và bạn có thể xếp tin theo giá từ thấp đến cao."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Chọn khu vực trước",
+              "text": "Trên [trang cho thuê](/c/rentals), bạn chọn quận hoặc khu bạn muốn ở, gần chỗ làm hay trường học của con. Chọn khu vực trước giúp bạn so giá đúng với mặt bằng của khu đó."
+            },
+            {
+              "title": "Đặt khoảng giá theo Rent Index",
+              "text": "Lấy giá trung vị của loại căn bạn cần trong bảng trên làm mốc. Một căn rẻ hơn mốc nhiều thường nhỏ hơn, xa hơn hoặc chưa tính phí quản lý. Một căn đắt hơn nhiều thì nên hỏi rõ được thêm những gì."
+            },
+            {
+              "title": "Đọc kỹ tin đăng",
+              "text": "Bạn ghi lại diện tích (m²), số phòng ngủ, tên phường hoặc xã, và giá đã gồm phí quản lý, điện nước hay chưa. Ở chung cư, phí quản lý và phí giữ xe thường tính riêng, nên hỏi số tiền cụ thể."
+            },
+            {
+              "title": "Nhắn tin hỏi căn còn trống trước khi đi",
+              "text": "Bạn nhắn tin cho chủ nhà, môi giới hoặc đối tác qua chat trên eno.vn để hỏi căn còn trống không trước khi đi xem. Riêng tin của đối tác chính thức [GoPlus](/goplus), chính GoPlus trả lời bạn qua chat trên eno.vn."
+            },
+            {
+              "title": "Đi xem nhà và chốt hợp đồng",
+              "text": "Khi xem nhà, bạn kiểm tra điện nước, máy lạnh, thang máy và chỗ để xe. Sau đó đọc hợp đồng theo danh sách ở phần dưới. Phần tiền cọc và cách lấy lại cọc có trong bài [tiền cọc thuê nhà](/rental-deposit-vietnam)."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Đừng đi xem khi chưa hỏi",
+          "text": "Căn giá tốt ở khu đông người thuê có thể đã có người thuê trước khi tin được gỡ. Nhắn tin hỏi xem căn còn trống không trước khi đi sẽ đỡ cho bạn những chuyến đi không, nhất là khi phải đi từ Hóc Môn hay Thủ Đức vào trung tâm."
+        }
+      ]
+    },
+    {
+      "id": "thue-chung-cu-hoc-mon",
+      "title": "Thuê chung cư Hóc Môn: giá bao nhiêu, ở khu nào?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Theo eno.vn Rent Index ngày 26/11/2026, Hóc Môn có 88 tin căn hộ với giá chào thuê trung vị {{vnd:3400000}} một tháng, thuộc nhóm rẻ nhất trong bảng trên. Chỉ 1 tin là căn một phòng ngủ, không có tin căn hai phòng ngủ trở lên, còn lại thuộc nhóm studio và phòng duplex. Các tin đang đăng có trên [trang cho thuê Hóc Môn](/c/rentals/hoc-mon)."
+        },
+        {
+          "type": "p",
+          "text": "Hóc Môn có quá ít tin căn một hoặc hai phòng ngủ nên Rent Index chưa công bố số trung vị cho hai loại này. Nếu cần căn rộng hơn, bạn có thể so với các khu có đủ số liệu như Quận 12 hay Gò Vấp trong bảng trên."
+        },
+        {
+          "type": "h3",
+          "text": "Hóc Môn bây giờ thuộc xã nào?"
+        },
+        {
+          "type": "p",
+          "text": "Từ 01/7/2025, theo Nghị quyết 1685/NQ-UBTVQH15, huyện Hóc Môn cũ được sắp xếp thành 4 xã:"
+        },
+        {
+          "type": "table",
+          "caption": "Các xã mới hình thành từ huyện Hóc Môn cũ, áp dụng từ 01/7/2025 (theo Thư Viện Nhà Đất).",
+          "headers": [
+            "Xã mới",
+            "Gồm các đơn vị cũ"
+          ],
+          "rows": [
+            [
+              "Xã Hóc Môn",
+              "Thị trấn Hóc Môn, xã Tân Hiệp, xã Tân Xuân"
+            ],
+            [
+              "Xã Bà Điểm",
+              "Bà Điểm, Xuân Thới Thượng, Trung Chánh"
+            ],
+            [
+              "Xã Đông Thạnh",
+              "Đông Thạnh, Thới Tam Thôn, Nhị Bình"
+            ],
+            [
+              "Xã Xuân Thới Sơn",
+              "Xuân Thới Sơn, Tân Thới Nhì, Xuân Thới Đông"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Vì vậy, một tin ghi “Hóc Môn” có thể nằm ở bất kỳ xã nào trong bốn xã trên. Bạn nên hỏi tên xã và đường cụ thể để tính quãng đường đi làm. Nếu ở Hóc Môn mà làm ở trung tâm, bạn cần tính thêm chi phí đi lại hằng ngày. Bài [kinh nghiệm thuê xe máy Sài Gòn](/huong-dan/thue-xe-may-sai-gon-kinh-nghiem) có giá thuê xe theo tháng."
+        }
+      ]
+    },
+    {
+      "id": "thue-chung-cu-cu",
+      "title": "Có nên thuê chung cư cũ không?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Chung cư cũ thường rẻ và gần trung tâm, nhưng nhiều tòa đang chờ kiểm định chất lượng hoặc nằm trong diện cải tạo. Vì vậy bạn nên hỏi tình trạng tòa nhà trước khi ký hợp đồng. Theo báo Đại biểu Nhân dân ngày 14/9/2026, TP.HCM có 220 lô chung cư cũ cần kiểm định."
+        },
+        {
+          "type": "p",
+          "text": "Cũng theo bài báo này, đến giữa tháng 7/2026 thành phố mới kiểm định xong 72 lô, khoảng 32,72%. Kế hoạch cải tạo của TP.HCM (phạm vi trước khi sáp nhập) nhắm tới 467 chung cư xây trước năm 1975 và trong giai đoạn 1975–1994."
+        },
+        {
+          "type": "h3",
+          "text": "Hỏi gì khi xem một căn chung cư cũ?"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "Tòa nhà đã được kiểm định chưa và kết quả thế nào. Ban quản lý hoặc tổ dân phố thường biết.",
+            "Tòa nhà có trong kế hoạch di dời hay xây lại không. Nếu có, hợp đồng nên ghi rõ cách xử lý khi phải dọn đi trước hạn.",
+            "Điện, nước và đường ống đã thay mới chưa. Có thang máy, chỗ để xe và lối thoát hiểm không.",
+            "Người cho thuê có phải chủ sở hữu căn hộ không, hay chỉ là người thuê lại."
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Hạn hợp đồng và kế hoạch di dời",
+          "text": "Nếu tòa nhà đang trong diện di dời, hợp đồng thuê dài hạn có thể phải chấm dứt sớm. Bạn nên hỏi trước, rồi ghi vào hợp đồng điều khoản trả lại tiền cọc khi có lệnh di dời."
+        }
+      ]
+    },
+    {
+      "id": "hop-dong-thue-chung-cu",
+      "title": "Hợp đồng thuê chung cư cần những gì?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Theo Luật Nhà ở 2023, hợp đồng thuê nhà ở phải lập thành văn bản (Điều 163) nhưng không phải công chứng, chứng thực, trừ khi hai bên muốn làm (Điều 164). Theo [Thư Viện Nhà Đất](https://thuviennhadat.vn/phap-ly-nha-dat/hop-dong-thue-nha-co-can-phai-cong-chung-khong-635090.html), hợp đồng cần có các nội dung dưới đây."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "Họ tên cá nhân hoặc tên tổ chức, và địa chỉ của hai bên.",
+            "Mô tả căn nhà, căn hộ cho thuê và thửa đất gắn với nhà ở.",
+            "Giá thuê nếu có thỏa thuận. Nếu Nhà nước có quy định về giá thì làm theo quy định đó.",
+            "Thời hạn và cách thanh toán.",
+            "Thời điểm bàn giao nhà và thời hạn thuê.",
+            "Quyền, nghĩa vụ và cam kết của mỗi bên, cùng các thỏa thuận khác.",
+            "Thời điểm hợp đồng có hiệu lực và ngày ký.",
+            "Chữ ký và họ tên của hai bên. Tổ chức thì đóng dấu (nếu có) và ghi chức vụ người ký."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Riêng với chung cư, bạn nên ghi rõ thêm ai trả **phí quản lý**, phí giữ xe, giá điện nước tính theo đồng hồ, và danh sách đồ đạc kèm theo. Nghĩa của từng vai trong hợp đồng có trong bài [hợp đồng thuê là gì](/huong-dan/hop-dong-thue-la-gi-ben-cho-thue-ben-thue). Nếu cần dọn nhà, đối tác chính thức của eno.vn là [Saigon Moving](/saigonmoving) báo giá trên trang của họ, và giá tùy từng chuyến."
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "text": "Bài này chỉ giải thích quy định chung, không phải tư vấn pháp lý. Với hợp đồng giá trị lớn hoặc khi có tranh chấp, bạn nên hỏi luật sư hoặc văn phòng công chứng."
+        }
+      ]
+    },
+    {
+      "id": "bai-nay-khong-de-cap",
+      "title": "Bài này không đề cập",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Cho thuê căn hộ của bạn, tức góc nhìn của chủ nhà. Xem [cho người nước ngoài thuê căn hộ TP.HCM](/huong-dan/cho-thue-can-ho-nguoi-nuoc-ngoai-tphcm).",
+            "Thuê căn hộ ở Hà Nội. Xem [thuê căn hộ Tây Hồ](/huong-dan/thue-can-ho-tay-ho).",
+            "Mua chung cư, vì hợp đồng mua bán nhà ở theo quy định khác với thuê (mua của cá nhân thì bắt buộc công chứng).",
+            "Giá thuê ở các khu trước đây thuộc Bình Dương và Bà Rịa–Vũng Tàu, vì Rent Index ngày 26/11/2026 chưa có các khu này."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Thuê chung cư Hóc Môn giá bao nhiêu?",
+      "a": "Theo eno.vn Rent Index ngày 26/11/2026, căn hộ cho thuê ở Hóc Môn thuộc nhóm có giá chào thuê trung vị thấp nhất TP.HCM. Số liệu dựa trên 88 tin, gần như toàn bộ là studio và phòng duplex. Hóc Môn có quá ít tin căn một hoặc hai phòng ngủ nên chỉ số chưa công bố giá cho hai loại này. Mức giá cụ thể có ở phần Hóc Môn của bài."
+    },
+    {
+      "q": "Thuê chung cư Bình Thạnh giá bao nhiêu?",
+      "a": "Theo eno.vn Rent Index ngày 26/11/2026, Bình Thạnh có 622 tin căn hộ cho thuê và đủ số liệu cho studio, căn một và hai phòng ngủ. Giá chào thuê trung vị chung của căn hộ ở Bình Thạnh cao hơn Gò Vấp, Tân Bình và Phú Nhuận, nhưng thấp hơn nhiều so với Quận 1, Quận 2 và Quận 4. Mức giá cụ thể theo từng loại căn có trong bảng giá theo khu vực của bài."
+    },
+    {
+      "q": "Huyện Hóc Môn bây giờ là xã gì?",
+      "a": "Từ ngày 01/7/2025, theo Nghị quyết 1685/NQ-UBTVQH15, huyện Hóc Môn cũ được chia thành 4 xã: Hóc Môn, Bà Điểm, Xuân Thới Sơn và Đông Thạnh. Xã Hóc Môn mới gồm thị trấn Hóc Môn cũ cùng hai xã Tân Hiệp và Tân Xuân. Người thuê chung cư ở Hóc Môn nên ghi tên xã mới trong hợp đồng thuê, dù tin đăng vẫn hay dùng tên huyện cũ."
+    },
+    {
+      "q": "Có nên thuê chung cư cũ ở TP.HCM không?",
+      "a": "Thuê chung cư cũ ở TP.HCM thường rẻ và gần trung tâm, nhưng nên hỏi tình trạng tòa nhà trước khi ký. Theo báo Đại biểu Nhân dân ngày 14/9/2026, thành phố có 220 lô chung cư cũ cần kiểm định, và đến giữa tháng 7/2026 mới kiểm định xong 72 lô. Người thuê nên hỏi ban quản lý về kết quả kiểm định và kế hoạch di dời của tòa nhà."
+    },
+    {
+      "q": "Hợp đồng thuê chung cư có cần công chứng không?",
+      "a": "Hợp đồng thuê chung cư không bắt buộc công chứng hay chứng thực. Theo Điều 164 Luật Nhà ở 2023, chỉ khi hai bên muốn thì mới đi công chứng. Theo Điều 163, hợp đồng thuê nhà ở vẫn phải lập thành văn bản, ghi rõ giá thuê, cách thanh toán, thời hạn thuê, quyền và nghĩa vụ của hai bên, rồi hai bên cùng ký và ghi rõ họ tên."
+    },
+    {
+      "q": "Thuê chung cư quận nào rẻ nhất TP.HCM?",
+      "a": "Theo eno.vn Rent Index ngày 26/11/2026, giá chào thuê trung vị của căn hộ thấp nhất ở Bình Tân, Hóc Môn, Nhà Bè và Bình Chánh, nơi phần lớn tin là studio. Với căn hai phòng ngủ, trong các khu có đủ số liệu thì Gò Vấp rẻ nhất, sau đó đến Phú Nhuận và Tân Bình. Quận 2 và Quận 1 có giá trung vị chung cao nhất."
+    },
+    {
+      "q": "Giá trong eno.vn Rent Index có phải giá thuê thật không?",
+      "a": "eno.vn Rent Index là giá chào thuê trung vị của các căn cho thuê đăng trên eno.vn, không phải giá trên hợp đồng đã ký. Vì vậy chỉ số cho biết người cho thuê đang chào giá bao nhiêu, còn giá chốt có thể thấp hơn sau khi thương lượng. Chỉ số không cắt bỏ giá cao hay thấp trong khoảng hợp lệ, và chưa công bố số trung vị cho khu vực có dưới 10 tin."
+    },
+    {
+      "q": "Làm sao biết căn hộ còn trống trước khi đi xem?",
+      "a": "Để biết căn hộ còn trống không, người thuê nhắn tin cho chủ nhà, môi giới hoặc đối tác qua chat trên eno.vn trước khi đi xem. Riêng các căn của đối tác chính thức GoPlus, GoPlus trả lời trực tiếp qua chat trên eno.vn. Nên hỏi trước khi đi xem, nhất là với căn ở xa như Hóc Môn hay Thủ Đức, vì căn giá tốt có thể đã có người thuê trước khi tin được gỡ."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Chỉ số giá thuê TP.HCM",
+      "publisher": "eno.vn",
+      "url": "https://eno.vn/hcmc-rent-index"
+    },
+    {
+      "title": "TP Hồ Chí Minh đốc thúc tiến độ thực hiện cải tạo chung cư cũ tại 32 phường",
+      "publisher": "Báo Đại biểu Nhân dân",
+      "url": "https://daibieunhandan.vn/tp-ho-chi-minh-doc-thuc-tien-do-thuc-hien-cai-tao-chung-cu-cu-tai-32-phuong-10430485.html"
+    },
+    {
+      "title": "Hợp đồng thuê nhà có cần phải công chứng không?",
+      "publisher": "Thư Viện Nhà Đất",
+      "url": "https://thuviennhadat.vn/phap-ly-nha-dat/hop-dong-thue-nha-co-can-phai-cong-chung-khong-635090.html"
+    },
+    {
+      "title": "Xã Hóc Môn mới gồm các xã nào sau sắp xếp ĐVHC TPHCM?",
+      "publisher": "Thư Viện Nhà Đất",
+      "url": "https://thuviennhadat.vn/phap-ly-nha-dat/xa-hoc-mon-moi-gom-cac-xa-nao-sau-sap-xep-dvhc-tphcm-691868.html"
+    }
+  ],
+  "related": [],
+  "lastChecked": "2026-11-26"
+}

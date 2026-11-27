@@ -1,0 +1,368 @@
+{
+  "slug": "how-big-is-a-14-inch-laptop",
+  "title": "How Big Is a 14-Inch Laptop? Real Sizes in cm",
+  "description": "A 14-inch laptop measured: the screen diagonal, the real body width, depth, thickness and weight from spec sheets, A4 and bag fit, and 15 and 16-inch sizes.",
+  "h1": "How big is a 14-inch laptop really? Screen, body, bag and desk",
+  "eyebrow": "Buying electronics",
+  "intro": "A 14-inch laptop has a screen 14 inches (35.56 cm) across the diagonal, and current models measure about 31–32.5 cm wide, 21.5–23 cm deep and under 2 cm thick. Those body sizes come from Apple, Dell and Lenovo spec sheets checked in November 2026. That makes a 14-inch laptop a little larger than a sheet of A4 paper and roughly 3.5–4.5 cm narrower than a 15 or 16-inch model.",
+  "keyPoints": [
+    "The \"14 inches\" is the **screen diagonal** only, 355.6 mm according to Lenovo's spec sheets. It is not the width of the laptop.",
+    "In November 2026, spec sheets put 14-inch models at **313–324 mm wide and 216–227 mm deep**. That is 1.6–2.7 cm longer and 0.6–1.7 cm deeper than a sheet of A4.",
+    "Weight starts at about **1.55 kg**. That was the lightest 14-inch MacBook Pro on Apple's spec page in November 2026; the Dell 14 starts at 1.56 kg.",
+    "A 16-inch model in the same range is about **4.3 cm wider and 2.7–2.8 cm deeper**. The 16-inch MacBook Pro was 0.59 kg heavier.",
+    "The screen shape changes the body shape. A 16:9 screen gives a wider, shallower laptop than a 16:10 screen of the same diagonal.",
+    "Before you buy a bag or sleeve, check its **inside** width and depth against the spec sheet of your exact model. Don't go by the size label alone."
+  ],
+  "sections": [
+    {
+      "id": "what-14-inch-measures",
+      "title": "What does \"14-inch\" actually measure?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "\"14-inch\" is the length of the screen's visible area measured diagonally, from one corner to the opposite corner. That is **35.56 cm**. It tells you nothing directly about the width or depth of the laptop."
+        },
+        {
+          "type": "p",
+          "text": "The laptop maker states this figure on its spec sheet. Lenovo's [IdeaPad Slim 5 specifications](https://download.lenovo.com/pccbbs/pubs/ideapad_slim5_14_16_10/ug/html_en/en/intro_specs_14.html) list the screen as \"355.6 mm (14 inches)\". Apple's [MacBook Pro tech specs](https://www.apple.com/macbook-pro/specs/) describe the 14-inch model's display as \"14.2-inch (diagonal)\". So a laptop sold as \"14-inch\" can be a fraction over 14 inches."
+        },
+        {
+          "type": "h3",
+          "text": "How wide and tall is a 14-inch screen?"
+        },
+        {
+          "type": "p",
+          "text": "A 14-inch screen is about 30–31 cm wide and 17.5–19 cm tall, depending on its aspect ratio. The two common shapes are 16:9, which is wider and shorter, and 16:10, which is a little taller. A 1920 × 1080 panel is 16:9. A 1920 × 1200 or 2880 × 1800 panel is 16:10."
+        },
+        {
+          "type": "table",
+          "caption": "Visible screen size by diagonal and aspect ratio (calculated from the diagonal; panels vary by a few millimetres)",
+          "headers": [
+            "Screen",
+            "Aspect ratio",
+            "Width",
+            "Height"
+          ],
+          "rows": [
+            [
+              "14-inch",
+              "16:9",
+              "about 31.0 cm",
+              "about 17.4 cm"
+            ],
+            [
+              "14-inch",
+              "16:10",
+              "about 30.2 cm",
+              "about 18.9 cm"
+            ],
+            [
+              "15.6-inch",
+              "16:9",
+              "about 34.5 cm",
+              "about 19.4 cm"
+            ],
+            [
+              "16-inch",
+              "16:10",
+              "about 34.5 cm",
+              "about 21.5 cm"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Screen area grows with the square of the diagonal. A 16-inch screen of the same shape therefore has about 31% more area than a 14-inch one, even though the diagonal is only 2 inches longer."
+        }
+      ]
+    },
+    {
+      "id": "real-body-dimensions",
+      "title": "How big is a 14-inch laptop body?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The 14-inch laptops in the table below measured **31.3–32.4 cm wide, 21.6–22.7 cm deep and 1.55–1.99 cm thick**. Every figure comes from the manufacturer's own spec page, read in November 2026. Use your exact model's sheet when millimetres matter."
+        },
+        {
+          "type": "table",
+          "caption": "14-inch laptop body sizes from manufacturers' spec pages, checked November 2026",
+          "headers": [
+            "Model",
+            "Width",
+            "Depth",
+            "Thickness",
+            "Weight"
+          ],
+          "rows": [
+            [
+              "Apple MacBook Pro 14-inch",
+              "312.6 mm",
+              "221.2 mm",
+              "15.5 mm",
+              "1.55–1.62 kg by chip"
+            ],
+            [
+              "Dell 14 (DC14250)",
+              "314.0 mm",
+              "226.15 mm",
+              "15.86 mm front, 17.31 mm rear",
+              "1.56–1.65 kg"
+            ],
+            [
+              "Lenovo IdeaPad 5 2-in-1 14-inch",
+              "313 mm",
+              "227 mm",
+              "17.5–18.9 mm",
+              "not listed"
+            ],
+            [
+              "Lenovo IdeaPad Slim 5 14-inch",
+              "313.4 mm",
+              "222 mm",
+              "16.9–17.9 mm",
+              "not listed"
+            ],
+            [
+              "Lenovo IdeaPad 3 14-inch",
+              "324.2 mm",
+              "215.7 mm",
+              "19.9 mm",
+              "not listed"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "The weights also come from the makers. According to Apple's spec page, as of November 2026, the 14-inch MacBook Pro weighs 1.55 kg with the M6 chip and up to 1.62 kg with the M5 Max. According to Dell's UK spec page, as of November 2026, the Dell 14 (DC14250) weighs 1.56 kg minimum and 1.65 kg maximum. Both makers say the weight varies by configuration."
+        },
+        {
+          "type": "h3",
+          "text": "Why do two 14-inch laptops differ in size?"
+        },
+        {
+          "type": "p",
+          "text": "Screen shape and bezel width make the difference. The Lenovo IdeaPad 3 14-inch has a 1920 × 1080 (16:9) screen. That made it the widest and shallowest laptop in the table, at 324.2 mm by 215.7 mm. The 16:10 models were about 1 cm narrower and up to 1.1 cm deeper. Thinner bezels shrink the body around the same screen, and 2-in-1 hinges and bigger batteries can add thickness."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Use the model number",
+          "text": "\"14-inch\" covers bodies that differ by more than 1 cm in width. For a sleeve, a stand or a drawer that fits tightly, find the exact model number on the sticker underneath. Then read the dimensions from the maker's spec page for that model."
+        }
+      ]
+    },
+    {
+      "id": "compared-with-larger-screens",
+      "title": "How does a 14-inch laptop compare with 15 and 16-inch models?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Within one product family, the step from 14 to 16 inches added about **4.3 cm of width and 2.7–2.8 cm of depth**. The step to 15 inches added about 3.5 cm of width and 2 cm of depth. Weight rose too. The 16-inch MacBook Pro was about 0.6 kg heavier than the 14-inch one."
+        },
+        {
+          "type": "table",
+          "caption": "Same-family size comparison from manufacturers' spec pages, checked November 2026",
+          "headers": [
+            "Model family",
+            "Screen",
+            "Width × depth",
+            "Weight"
+          ],
+          "rows": [
+            [
+              "Apple MacBook Pro",
+              "14.2-inch",
+              "312.6 × 221.2 mm",
+              "from 1.55 kg"
+            ],
+            [
+              "Apple MacBook Pro",
+              "16.2-inch",
+              "355.7 × 248.1 mm",
+              "from 2.14 kg"
+            ],
+            [
+              "Lenovo IdeaPad 5 2-in-1",
+              "14-inch",
+              "313 × 227 mm",
+              "not listed"
+            ],
+            [
+              "Lenovo IdeaPad 5 2-in-1",
+              "16-inch",
+              "356 × 255 mm",
+              "not listed"
+            ],
+            [
+              "Lenovo IdeaPad 3",
+              "14-inch",
+              "324.2 × 215.7 mm",
+              "not listed"
+            ],
+            [
+              "Lenovo IdeaPad 3",
+              "15-inch",
+              "359.2 × 236.5 mm",
+              "not listed"
+            ],
+            [
+              "Lenovo IdeaPad 3",
+              "17-inch",
+              "399 × 274 mm",
+              "not listed"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "According to Apple, as of November 2026, the 16-inch MacBook Pro weighs 2.14–2.15 kg and the 14-inch model 1.55–1.62 kg. The extra 0.5–0.6 kg is noticeable over a day of carrying."
+        },
+        {
+          "type": "p",
+          "text": "Choosing between the sizes is a separate question, covered in [14-inch vs 15.6-inch laptop: which size to choose](/guides/14-inch-vs-15-6-inch-laptop) ([bản tiếng Việt](/huong-dan/nen-mua-laptop-14-inch-hay-15-6-inch))."
+        }
+      ]
+    },
+    {
+      "id": "bag-and-desk-fit",
+      "title": "Will a 14-inch laptop fit my bag and desk?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "A 14-inch laptop fits any bag or desk space that can take a sheet of A4 with about 3 cm to spare in length and 2 cm in depth. A4 is 210 × 297 mm under [ISO 216](https://www.cl.cam.ac.uk/~mgk25/iso-paper.html). The 14-inch bodies above were 1.6–2.7 cm longer and 0.6–1.7 cm deeper than that."
+        },
+        {
+          "type": "h3",
+          "text": "Is a 14-inch laptop bigger than A4 paper?"
+        },
+        {
+          "type": "p",
+          "text": "Yes, slightly, on both sides. The Lenovo IdeaPad Slim 5 14-inch (313.4 × 222 mm) is 16.4 mm longer and 12 mm deeper than an A4 sheet. The IdeaPad 3 14-inch is 27.2 mm longer but only 5.7 mm deeper. An A4 document wallet or ring binder is therefore a rough stand-in when you test a bag in a shop."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Find your laptop's width, depth and thickness",
+              "text": "Read them from the maker's spec page for your exact model number, not from a general \"14-inch\" figure."
+            },
+            {
+              "title": "Check the bag's inside measurements",
+              "text": "Bag and sleeve labels such as \"fits up to 14 inches\" refer to the screen diagonal. Measure inside the laptop compartment, or ask the seller for its inside measurements."
+            },
+            {
+              "title": "Allow for padding and the charger",
+              "text": "A padded compartment needs a few millimetres more than the laptop body. Charger bricks vary by model, so measure yours separately."
+            },
+            {
+              "title": "Check the desk depth with the lid open",
+              "text": "Spec sheets give the depth with the lid closed. With the screen open and tilted back, the laptop needs more room behind it, so try it at the desk or table you will use."
+            }
+          ]
+        },
+        {
+          "type": "p",
+          "text": "A bag made for 15.6 or 16-inch laptops will hold a 14-inch one, with 3.5–4.5 cm of spare width. Without a sleeve or strap, the laptop can slide around inside it."
+        }
+      ]
+    },
+    {
+      "id": "carrying-and-buying-in-ho-chi-minh-city",
+      "title": "Carrying and buying a 14-inch laptop in Ho Chi Minh City",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "For daily travel by motorbike or Grab, a 14-inch laptop of about 1.5–1.65 kg fits a standard backpack or a motorbike seat compartment more easily than a 16-inch model. A seat compartment is about A4-sized, so measure yours before you rely on it. In the rainy season, use a sleeve inside a waterproof bag or a rain cover. Getting to work is covered in [getting around Ho Chi Minh City](/teach-in-vietnam/getting-around-ho-chi-minh-city)."
+        },
+        {
+          "type": "p",
+          "text": "If you teach online or tutor in students' homes, the size you choose affects what you can carry with you. The working set-up is covered in [private tutoring and online teaching in Vietnam](/teach-in-vietnam/private-tutoring-and-online-teaching-in-vietnam)."
+        },
+        {
+          "type": "p",
+          "text": "When you buy second-hand, for example from listings in [Electronics on eno.vn](/c/electronics), ask the seller for the exact model number. Then check the maker's spec page before you go to view the laptop. Second-hand sellers often describe size loosely. Model choice for used business laptops is covered in [HP vs Lenovo used laptops](/guides/hp-vs-lenovo-used-laptop)."
+        }
+      ]
+    },
+    {
+      "id": "what-this-guide-does-not-cover",
+      "title": "What this guide does not cover",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Laptop prices in Vietnam. Prices change too often to quote here, so compare live listings in [Electronics on eno.vn](/c/electronics).",
+            "Which size to buy for your work. See [14-inch vs 15.6-inch laptop: which size to choose](/guides/14-inch-vs-15-6-inch-laptop).",
+            "Airline cabin-bag rules for laptops. These vary by airline, so check with yours before you fly.",
+            "Battery life, performance and screen quality. These depend on the model, not the screen size, so read reviews of the exact model."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "How big is a 14 inch laptop in cm?",
+      "a": "A 14-inch laptop has a screen 35.56 cm across the diagonal, but the body is narrower than that diagonal. In November 2026, spec sheets from Apple, Dell and Lenovo put current 14-inch models at about 31.3 to 32.4 cm wide and 21.6 to 22.7 cm deep, with a thickness of about 1.6 to 2 cm. Exact sizes vary by model, so check the maker's spec sheet for the model number."
+    },
+    {
+      "q": "Is a 14 inch laptop bigger than A4 paper?",
+      "a": "A 14-inch laptop is slightly bigger than A4 paper, which measures 210 × 297 mm under ISO 216. In November 2026, the 14-inch laptops on Apple, Dell and Lenovo spec sheets were 1.6 to 2.7 cm longer and 0.6 to 1.7 cm deeper than an A4 sheet. An A4 binder is therefore a useful rough guide when you test a bag."
+    },
+    {
+      "q": "How much does a 14 inch laptop weigh?",
+      "a": "A typical 14-inch laptop weighs about 1.5 to 1.7 kg. According to Apple's spec page in November 2026, the 14-inch MacBook Pro weighs 1.55 to 1.62 kg depending on the chip. According to Dell's UK spec page in November 2026, the Dell 14 (DC14250) weighs 1.56 to 1.65 kg. The charger adds more, and the weight varies by configuration."
+    },
+    {
+      "q": "What are the screen dimensions of a 14 inch laptop?",
+      "a": "The visible screen of a 14-inch laptop is about 30 to 31 cm wide and 17.5 to 19 cm tall, depending on its shape. A 16:9 screen, such as a 1920 × 1080 panel, is about 31.0 by 17.4 cm. A 16:10 screen, such as a 1920 × 1200 panel, is about 30.2 by 18.9 cm. These figures are calculated from the 35.56 cm diagonal."
+    },
+    {
+      "q": "What is the difference in size between a 14 and 16 inch laptop?",
+      "a": "A 16-inch laptop was about 4.3 cm wider and 2.7 to 2.8 cm deeper than the 14-inch model in the same family, according to Apple and Lenovo spec sheets checked in November 2026. The 16-inch MacBook Pro also weighed about 0.6 kg more than the 14-inch MacBook Pro. A 16-inch screen of the same shape has about 31% more area."
+    },
+    {
+      "q": "Will a 14 inch laptop fit in a 15.6 inch laptop bag?",
+      "a": "A 14-inch laptop will fit in a bag made for 15.6-inch laptops, with roughly 3.5 to 4.5 cm of spare width. The laptop may slide around inside, so a sleeve or an inner strap helps protect it. Bag labels refer to the screen diagonal, so check the compartment's inside measurements against your laptop's spec sheet."
+    }
+  ],
+  "sources": [
+    {
+      "title": "MacBook Pro - Tech Specs",
+      "publisher": "Apple",
+      "url": "https://www.apple.com/macbook-pro/specs/"
+    },
+    {
+      "title": "Dell 14 Laptop",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/en-uk/shop/laptops-2-in-1-pcs/dell-14-laptop/spd/dell-dc14250-laptop"
+    },
+    {
+      "title": "Features and specifications (IdeaPad 5 2-in-1 14 and 16)",
+      "publisher": "Lenovo",
+      "url": "https://download.lenovo.com/pccbbs/pubs/ideapad_5_2in1_14_16/ug/html_en/en/intro_specs.html"
+    },
+    {
+      "title": "For 14-inch models (IdeaPad Slim 5)",
+      "publisher": "Lenovo",
+      "url": "https://download.lenovo.com/pccbbs/pubs/ideapad_slim5_14_16_10/ug/html_en/en/intro_specs_14.html"
+    },
+    {
+      "title": "Features and specifications (IdeaPad 3)",
+      "publisher": "Lenovo",
+      "url": "https://download.lenovo.com/pccbbs/pubs/ip3_slim3_7/html_en/EN/product_features_specs_IdeaPad3.html"
+    },
+    {
+      "title": "A4 paper format / International standard paper sizes",
+      "publisher": "University of Cambridge, Computer Laboratory (Markus Kuhn)",
+      "url": "https://www.cl.cam.ac.uk/~mgk25/iso-paper.html"
+    }
+  ],
+  "related": [
+    "private-tutoring-and-online-teaching-in-vietnam",
+    "getting-around-ho-chi-minh-city",
+    "your-first-weeks-in-ho-chi-minh-city"
+  ],
+  "lastChecked": "2026-11-25"
+}

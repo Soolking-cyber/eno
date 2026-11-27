@@ -107,8 +107,10 @@ export function titleWithSite(title: string, siteName: string, max = 70): string
 /**
  * A listing's <title>: "<title> — <price> | <site>" within `max` characters (Seobility, 2026-11-23: imported titles measured
  * 953–1045 px against the ~580 px a result shows, ~60 characters). The site's name goes first, then the title is cut at a word;
- * the price is never cut. ⚠️ So a stated salary range long enough to leave the title under 24 characters (about 33
- * characters and up, "15.000.000 – 25.000.000 đ / tháng") runs past `max`: a title that says nothing is worse than a long one.
+ * the price is never cut. ⚠️ A tail too long to share the line — a salary in words ("Competitive salary based on experience
+ * and qualifications", 55 characters) or a long range ("15.000.000 – 25.000.000 đ / tháng") — is DROPPED, not kept: it left the
+ * title a stump at 76 characters ("Science Teacher… — Competitive salary …", Bing site scan 2026-11-27), and a title that says
+ * nothing is worse than one without its price. The description still leads with the price or salary.
  */
 export function titleWithPrice(title: string, price: string, siteName: string, max = 60): string {
   const tail = price ? ` — ${price}` : ''
@@ -116,7 +118,8 @@ export function titleWithPrice(title: string, price: string, siteName: string, m
   if (fitsTitle(withSite, max)) return withSite
   if (fitsTitle(`${title}${tail}`, max)) return `${title}${tail}`
   // The title gets what the price leaves, in characters and in pixels — never under 24 characters / 200 px (the note above).
-  return `${clipTitle(title, Math.max(24, max - tail.length), Math.max(200, TITLE_MAX_PX - titlePx(tail)))}${tail}`
+  const shared = `${clipTitle(title, Math.max(24, max - tail.length), Math.max(200, TITLE_MAX_PX - titlePx(tail)))}${tail}`
+  return fitsTitle(shared, max) ? shared : titleWithSite(title, siteName, max)
 }
 
 /**

@@ -17,11 +17,16 @@ export type ArticleAuthor = {
   image: string
   /** The small label above the name, in the article's language. */
   label: string
+  /**
+   * The author's public LinkedIn profile (owner, 2026-11-27: "attach linkedin profiles to content author"): the byline's name
+   * links to it, and the JSON-LD Person carries it as `url` and `sameAs`, so a search engine can tie the byline to a real person.
+   */
+  profile: string
 }
 
 export const ARTICLE_AUTHORS: Readonly<Record<'en' | 'vi', ArticleAuthor>> = {
-  en: { name: 'Shanazar Babakulyyev', jobTitle: 'COO', image: '/team/shanazar-babakulyyev.webp', label: 'Written by' },
-  vi: { name: 'Nguyễn Quốc Lập', jobTitle: 'Chuyên viên Marketing', image: '/team/nguyen-quoc-lap.webp', label: 'Tác giả' },
+  en: { name: 'Shanazar Babakulyyev', jobTitle: 'COO', image: '/team/shanazar-babakulyyev.webp', label: 'Written by', profile: 'https://www.linkedin.com/in/babakulyyev-shanazar-8068b1188/' },
+  vi: { name: 'Nguyễn Quốc Lập', jobTitle: 'Chuyên viên Marketing', image: '/team/nguyen-quoc-lap.webp', label: 'Tác giả', profile: 'https://www.linkedin.com/in/lap-nguyen-233219265/' },
 }
 
 /** The JSON-LD author: a Person who works for the site's Organization node (by `@id` on the marketplace). */
@@ -31,6 +36,8 @@ export function authorPersonLd(a: ArticleAuthor, origin: string, siteName: strin
     name: a.name,
     jobTitle: a.jobTitle,
     image: `${origin}${a.image}`,
+    url: a.profile,
+    sameAs: [a.profile],
     worksFor: { '@type': 'Organization', ...orgRef, name: siteName, url: origin },
   }
 }

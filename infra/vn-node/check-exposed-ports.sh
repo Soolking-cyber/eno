@@ -20,7 +20,9 @@ KEY="${ENO_SSH_KEY:-$HOME/.ssh/CS-Linux-20260920135129228.pem}"
 HOST="${ENO_HOST:-root@162.4.176.233}"
 PORT="${ENO_SSH_PORT:-24700}"
 IP="${ENO_PUBLIC_IP:-${HOST#*@}}"
-# Postgres, Supavisor pooler, Supabase gateway (Kong/envoy) http+https, Studio, GoTrue, Realtime, Storage, the two apps, :80.
+# Postgres, Supavisor pooler, Supabase gateway (Kong/envoy) http+https, Studio, GoTrue, Realtime, Storage, eno.vn's app (3001),
+# :80 — and 3002, the services edition's old port: nothing runs there since 2026-11-26 (owner — eno.forum is Reach), and it
+# stays listed so anything that ever publishes it again is caught.
 SENSITIVE=(5432 6543 8000 8443 3000 9999 4000 5000 3001 3002 80)
 
 FAILED=0

@@ -6,7 +6,8 @@ import { SITE_NAME } from '@/lib/edition'
 import { formatMoneyFull } from '@/lib/vnd'
 import { loadSeoRail, SeoListingGrid } from '@/components/marketplace/seo-listing-rail'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
-import { IPHONE_17_MODELS, IPHONE_18_MODELS, IPHONE_DUO_MODEL, lowestPrices, type PriceRow } from './lowest-prices'
+import { IPHONE_17_MODELS, IPHONE_18_MODELS, IPHONE_DUO_MODEL, lowestNewPrices, lowestPrices, type PriceLookup, type PriceRow } from './lowest-prices'
+import { NEW_APPLE_IPHONE_MODELS } from '@/lib/new-apple'
 import { AffiliateNote, PriceTable, showAffiliateNote } from './price-table'
 import { DuoCard } from './duo-card'
 import { APPLE_VN_FROM_PRICE, APPLE_VN_DUO_2TB_PRICE } from './price-guard'
@@ -21,6 +22,9 @@ import { APPLE_VN_FROM_PRICE, APPLE_VN_DUO_2TB_PRICE } from './price-guard'
  * ⛔ SECOND-HAND FOCUS (owner, 2026-10-03): the tables read USED listings only (lowest-prices.ts) — the new
  * retail stock they used to quote (CellphoneS, Thế Giới Di Động, Bạch Long) was taken off the site. Apple
  * Vietnam's prices are quoted as Apple's. The iPhone 17 table is the second-hand market that exists today.
+ * ⚠️ AND NEW UNITS FROM THREE SHOPS AGAIN, SINCE 2026-11-26 (owner: "import them and link to our organic posts"): the new
+ * iPhone 18 Pro, Pro Max and Duo of ShopDunk, CellphoneS and Hoàng Hà Mobile (src/lib/new-apple.ts), in their own table above the
+ * second-hand ones (lowest-prices.ts `lowestNewPrices`), sold by the shop through its Buy now, with its own disclosure line.
  */
 export const revalidate = 3600
 
@@ -103,10 +107,18 @@ const rrp = (n: number) => money(n).replace(/ đ$/, '\u00a0đ')
 /**
  * `known` is false when a price read failed (a build with the database unreachable): then nothing here says
  * "no second-hand one is listed" — that would be a claim about stock the page never looked at (review).
+ * `fresh` is the NEW table's read (2026-11-26). With no new rows, every sentence below reads as it did before them.
  */
-function content(rows: PriceRow[], rows17: PriceRow[], known: boolean): SeoContent {
+function content(rows: PriceRow[], rows17: PriceRow[], known: boolean, fresh: PriceLookup): SeoContent {
   const proFloor = floorFor(rows, 'iPhone 18 Pro')
   const maxFloor = floorFor(rows, 'iPhone 18 Pro Max')
+  const proNew = floorFor(fresh.rows, 'iPhone 18 Pro')
+  // The cheapest new unit of each line the shops list — a model with none is left out of the clause, not quoted as missing.
+  const newFloors = NEW_APPLE_IPHONE_MODELS.map((m) => floorFor(fresh.rows, m)).filter((f): f is PriceRow => f !== null)
+  const newClause = newFloors.length
+    ? ` New from the shops here right now: ${newFloors.map((f) => `${f.model} ${money(f.price)} (${f.storage})`).join(', ')}.`
+    : ''
+  const anyUsed = rows.length + rows17.length > 0
   /**
    * ⚠️ THE INTRO NAMES A PRICE ONLY WHEN ONE WAS READ. Interpolating a `null` floor as "from 0 ₫"
    * on the page that exists to answer "how much" is the failure mode worth guarding; the sentence
@@ -128,14 +140,20 @@ function content(rows: PriceRow[], rows17: PriceRow[], known: boolean): SeoConte
     intro:
       `Apple Vietnam’s prices for the 256GB models: iPhone 18 Pro **${rrp(PRO_FROM)}**, iPhone 18 Pro Max **${rrp(MAX_FROM)}** and the folding iPhone Duo **${rrp(DUO_FROM)}**. ` +
       'The two Pro models reached Vietnamese buyers on 18 September 2026, and the Duo on 23 October.' +
+      newClause +
       priceClause +
       /**
        * ⚠️ THE PROMISE IS CONDITIONAL ON THERE BEING A TABLE TO POINT AT (opus) — and since 2026-10-03 on
        * what the tables are: live SECOND-HAND listings, never a retailer's shelf price.
        */
-      (rows.length + rows17.length > 0
-        ? ' The tables below read the second-hand phone shops’ live listings on this marketplace — the iPhone 18 as units resell, and the iPhone 17 line, where the second-hand market is today.'
-        : known ? ' Second-hand units usually appear a few weeks after launch.' : ''),
+      // ⚠️ AND WITH THE NEW TABLE, NOT "the second-hand phone shops" ALONE (2026-11-26): it names both sources only when both show.
+      (fresh.rows.length > 0
+        ? anyUsed
+          ? ' The tables below read live listings on this marketplace: new units from the shops that sell them, and second-hand ones from the used-phone shops — the iPhone 18 as units resell, and the iPhone 17 line.'
+          : ' The table below reads the shops’ live listings of new units on this marketplace.'
+        : anyUsed
+          ? ' The tables below read the second-hand phone shops’ live listings on this marketplace — the iPhone 18 as units resell, and the iPhone 17 line, where the second-hand market is today.'
+          : known ? ' Second-hand units usually appear a few weeks after launch.' : ''),
     categorySlug: 'electronics',
     subcategorySlug: 'phones-tablets',
     brandSlug: 'apple',
@@ -189,7 +207,7 @@ function content(rows: PriceRow[], rows17: PriceRow[], known: boolean): SeoConte
       {
         title: 'Where these prices come from',
         body:
-          'The tables read live second-hand listings from the used-phone shops on this marketplace, and show the lowest price per storage tier; a price far out of line with the other listings of the same model, or with Apple’s own price, is left out as a likely typo. Apple Vietnam’s own prices are quoted as Apple’s, never as a listing. Second-hand prices follow new ones down: the usual pattern after an iPhone launch is a 1–3 million đồng slide over the first two months as the pre-order rush clears, and a used unit lists below that.',
+          'The tables read live listings on this marketplace and show the lowest price per storage tier: new units from the phone shops that sell them here, when they list one — the shop sells it, and you message the shop here for its Buy now button — and second-hand units from the used-phone shops. A price far out of line with the other listings of the same model, or with Apple’s own price, is left out as a likely typo. Apple Vietnam’s own prices are quoted as Apple’s, never as a listing. Second-hand prices follow new ones down: the usual pattern after an iPhone launch is a 1–3 million đồng slide over the first two months as the pre-order rush clears, and a used unit lists below that.',
       },
     ],
     related: [
@@ -206,11 +224,14 @@ function content(rows: PriceRow[], rows17: PriceRow[], known: boolean): SeoConte
     faqs: [
       {
         q: 'How much is an iPhone 18 Pro in Vietnam?',
-        a: proFloor
-          ? `Apple Vietnam’s recommended price for the 256GB iPhone 18 Pro is ${money(PRO_FROM)}. The cheapest second-hand one a shop lists on ${SITE_NAME} right now is ${money(proFloor.price)} for the ${proFloor.storage} model — check the listing for a VN/A model number and the battery health; the other storage tiers are in the table above.`
-          : known
-            ? `Apple Vietnam’s recommended price for the 256GB iPhone 18 Pro is ${money(PRO_FROM)}. No second-hand shop lists one on ${SITE_NAME} yet; used units usually appear a few weeks after launch.`
-            : `Apple Vietnam’s recommended price for the 256GB iPhone 18 Pro is ${money(PRO_FROM)}.`,
+        // ⚠️ THE ANSWER IS BUILT FROM THE TABLES' OWN ROWS, both of them — and SeoLanding prints it and its FAQPage node from this one
+        // string, so the markup cannot say what the page does not.
+        a: `Apple Vietnam’s recommended price for the 256GB iPhone 18 Pro is ${money(PRO_FROM)}.` +
+          (proNew ? ` The cheapest new one a shop lists on ${SITE_NAME} right now is ${money(proNew.price)} for the ${proNew.storage} model.` : '') +
+          (proFloor
+            ? ` The cheapest second-hand one a shop lists on ${SITE_NAME} right now is ${money(proFloor.price)} for the ${proFloor.storage} model — check the listing for a VN/A model number and the battery health.`
+            : known ? ` No second-hand shop lists one on ${SITE_NAME} yet; used units usually appear a few weeks after launch.` : '') +
+          (proNew || proFloor ? ` The other storage tiers are in the ${proNew && proFloor ? 'tables' : 'table'} above.` : ''),
       },
       ...secondHand17Faq(rows17),
       {
@@ -239,7 +260,7 @@ function content(rows: PriceRow[], rows17: PriceRow[], known: boolean): SeoConte
       },
       {
         q: 'Will the price drop?',
-        a: 'Usually, yes — new-iPhone prices in Vietnam typically settle 1–3 million đồng below launch within the first two months as pre-orders clear, and second-hand prices follow them down. The tables above show what second-hand units were listed for when the page was last checked, not a forecast.',
+        a: 'Usually, yes — new-iPhone prices in Vietnam typically settle 1–3 million đồng below launch within the first two months as pre-orders clear, and second-hand prices follow them down. The tables above show what units were listed for here when the page was last checked, not a forecast.',
       },
     ],
     /**
@@ -264,13 +285,14 @@ function content(rows: PriceRow[], rows17: PriceRow[], known: boolean): SeoConte
 }
 
 export default async function IPhone18VietnamPage() {
-  const [phones, phones17, duo, partnerPhones] = await Promise.all([
+  const [phones, phones17, duo, partnerPhones, fresh] = await Promise.all([
     lowestPrices(), lowestPrices(IPHONE_17_MODELS), lowestPrices([IPHONE_DUO_MODEL]),
     loadSeoRail({
       categorySlug: 'electronics', subcategorySlug: 'phones-tablets', brandSlug: 'apple',
       condition: 'used', listingType: 'sell', models: [...IPHONE_18_MODELS, ...IPHONE_17_MODELS],
       accessTradePhones: true, order: 'recent',
     }),
+    lowestNewPrices(NEW_APPLE_IPHONE_MODELS),
   ])
   const rows = phones.rows
   const rows17 = phones17.rows
@@ -283,7 +305,7 @@ export default async function IPhone18VietnamPage() {
   const updated = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
   return (
     <SeoLanding
-      content={content(rows, rows17, phones.known && phones17.known)}
+      content={content(rows, rows17, phones.known && phones17.known, fresh)}
       inventory={partnerPhones.listings.length ? {
         known: true,
         count: partnerPhones.listings.length,
@@ -291,6 +313,9 @@ export default async function IPhone18VietnamPage() {
       } : undefined}
       lede={
         <>
+          {/* NEW ABOVE USED (2026-11-26): the three shops' new Pro, Pro Max and Duo, with the table's own disclosure line. With
+              none it renders nothing (or its could-not-read line), and the page below reads exactly as before. */}
+          <PriceTable condition="new" rows={fresh.rows} known={fresh.known} updated={updated} seeAll={false} id="new-iphone-18-prices" />
           {/* ⛔ NO EMPTY TABLE AND NO SILENCE EITHER: with no second-hand iPhone 18 yet, one line says so —
               and only when the catalogue was actually read (PriceTable owns the could-not-read state).
               ⚠️ BUT NOT A THIRD TIME (2026-11-06 audit): with neither table, the intro already says used units usually appear a
@@ -304,9 +329,9 @@ export default async function IPhone18VietnamPage() {
               </LocalizedLink>
             </p>
           ) : (
-            <PriceTable rows={rows} known={phones.known} updated={updated} seeAll={false} id="used-iphone-18-prices" heading={<Tr text="Second-hand iPhone 18 prices today" />} />
+            <PriceTable condition="used" rows={rows} known={phones.known} updated={updated} seeAll={false} id="used-iphone-18-prices" heading={<Tr text="Second-hand iPhone 18 prices today" />} />
           )}
-          <PriceTable rows={rows17} known={phones17.known} updated={updated} seeAll={false} id="used-iphone-17-prices" heading={<Tr text="Second-hand iPhone 17 prices today" />} />
+          <PriceTable condition="used" rows={rows17} known={phones17.known} updated={updated} seeAll={false} id="used-iphone-17-prices" heading={<Tr text="Second-hand iPhone 17 prices today" />} />
           <DuoCard rows={duoRows} known={duo.known} checked={updated} />
           {showAffiliateNote(rows, rows17, duoRows) && <AffiliateNote />}
         </>

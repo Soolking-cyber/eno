@@ -45,7 +45,8 @@ import { Button } from '@/components/ui/button'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Tr } from '@/context/language-context'
 import { ViTwinLink } from '@/components/marketplace/vi-twin-link'
-import { GridDealsNote, GridLedeTail, ReportNote } from '@/components/marketplace/grid-about'
+import { GridDealsNote, GridLedeTail, GridWards, ReportNote } from '@/components/marketplace/grid-about'
+import { topWards } from '@/lib/district-wards'
 
 /**
  * 1 day. It was 7 days ("long-tail combo, client fetches live, weekly regen is plenty") until the page's
@@ -164,7 +165,7 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
   const head = await diverseFeedWindow(listed, [{ rankScore: 'desc' }, { id: 'desc' }], LISTING_CARD_SELECT, { sharedSeats, teachers: true, fresh: categorySlug === TEACHERS_CATEGORY_SLUG })
   const rows = diversifyBySeller(head, { sharedSeats }).slice(0, DISTRICT_PAGE_SIZE)
   if (rows.length === 0) return null
-  const [groups, linked, noindex] = await Promise.all([
+  const [groups, linked, noindex, byLocation] = await Promise.all([
     // Sibling chips come from one aggregate over the whole category.
     db.listing.groupBy({
       by: ['district'],
@@ -193,6 +194,9 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
       floor: MIN_INDEXABLE_LISTINGS,
       teachers: categorySlug === TEACHERS_CATEGORY_SLUG,
     }),
+    // The wards the lede names (district-wards.ts: Seobility crawl 11 read D12 and D8 as one page), over what the grid lists.
+    // edition-lint-allow: `listed` is `where` (or it AND the home aisles), where = { AND: [base, scope] } above.
+    db.listing.groupBy({ by: ['location'], where: listed, _count: { _all: true }, orderBy: { _count: { location: 'desc' } }, take: 300 }),
   ])
   /**
    * ⚠️ MERGED BY CANONICAL SLUG (district-canonical.ts). Two stored spellings of one place ("Quận Củ
@@ -207,6 +211,7 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
   const linkedHomes = linked.reduce((n, g) => n + ((HOME_RENTAL_SUBCATS as readonly (string | null)[]).includes(g.subcategorySlug) ? g._count._all : 0), 0)
   return {
     cat, matched: rows, total, linked: linkedTier(linkedAll, total), place, inHcmc: isCuratedDistrict(districtSlug), districts, noindex,
+    wards: topWards(byLocation.map((g) => ({ location: g.location, count: g._count._all }))),
     homes: homesOnly ? homes : null,
     homesLinked: homesOnly ? linkedTier(linkedHomes, homes!.total) : ('none' as const),
     /**
@@ -335,7 +340,7 @@ async function districtRent(slug: string): Promise<{ cells: RentCell[]; asOf: { 
 
 export default async function CategoryDistrictPage({ params }: Props) {
   const { lang, district, data } = await resolve(params)
-  const { cat, matched, total, linked, place, districts, homes, homesLinked, searchPlace } = data
+  const { cat, matched, total, linked, place, districts, homes, homesLinked, searchPlace, wards } = data
   const rentals = cat.slug === 'rentals'
   const headline = rentals ? districtRentalsHeadline(homes) : null
   // What the grid lists: homes while there are any (D1), else every rental in scope.
@@ -492,8 +497,9 @@ export default async function CategoryDistrictPage({ params }: Props) {
             homes={homes} homesLinked={homesLinked} slug={district}
             linkable={districts.filter((d) => isIndexableCount(d.count)).map((d) => d.slug)}
           />
-          {/* Long enough to count as a paragraph (owner, 2026-11-26 — grid-about.tsx); teacher profiles are not listings. */}
-          {cat.slug !== TEACHERS_CATEGORY_SLUG && total > 0 && <>{' '}<GridLedeTail /></>}
+          {/* Long enough to count as a paragraph (owner, 2026-11-26 — grid-about.tsx); teacher profiles are not listings. The
+              page's own wards when it has three, so its words are its own (district-wards.ts), else the general sentence. */}
+          {cat.slug !== TEACHERS_CATEGORY_SLUG && total > 0 && <>{' '}{wards.length >= 3 ? <GridWards wards={wards} /> : <GridLedeTail />}</>}
         </p>
         {/* Only for an HCMC district: the index covers Ho Chi Minh City and nothing else. The block when
             the snapshot has a figure for this district; the plain link otherwise (and on eno.forum,

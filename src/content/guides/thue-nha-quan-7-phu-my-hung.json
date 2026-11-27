@@ -201,11 +201,11 @@
     },
     {
       "id": "kiem-tra-con-trong-truoc-khi-den",
-      "title": "Kiểm tra nhà còn trống trước khi đến",
+      "title": "Hỏi nhà còn trống không trước khi đến",
       "blocks": [
         {
           "type": "p",
-          "text": "Trên eno.vn, bạn có thể nhờ kiểm tra một căn nhà Quận 7 còn trống hay không trước khi đến. Ở mỗi tin cho thuê, nút kiểm tra tình trạng nhà sẽ gửi yêu cầu để đội ngũ eno kiểm tra. Với tin của GoPlus, một đối tác chính thức của eno.vn, GoPlus sẽ trả lời bạn trong khung chat của eno.vn."
+          "text": "Muốn biết một căn nhà Quận 7 còn trống hay không trước khi đến, hãy nhắn tin cho chủ nhà, môi giới hoặc đối tác đăng tin qua chat trên eno.vn. Với tin của GoPlus, một đối tác chính thức của eno.vn, GoPlus tự trả lời tin của mình trong chat eno.vn. Với tin liên kết, nút trên tin mở tin gốc trên trang nguồn, và bạn hỏi người đăng ở đó."
         },
         {
           "type": "steps",
@@ -215,8 +215,8 @@
               "text": "Mở [nhà cho thuê Quận 7](/c/rentals/d7), lọc theo số phòng ngủ và sắp xếp theo giá. Chọn vài căn và ghi lại phường của từng căn."
             },
             {
-              "title": "Gửi yêu cầu kiểm tra",
-              "text": "Bấm kiểm tra tình trạng nhà ở các căn đã chọn. Với tin của [GoPlus](/goplus), hỏi GoPlus trong chat eno.vn."
+              "title": "Nhắn tin hỏi nhà còn trống không",
+              "text": "Nhắn cho chủ nhà hoặc môi giới của các căn đã chọn qua chat eno.vn. Với tin của [GoPlus](/goplus), GoPlus tự trả lời trong chat eno.vn. Với tin liên kết, nút trên tin mở tin gốc trên trang nguồn để bạn hỏi người đăng."
             },
             {
               "title": "Hỏi giá đã gồm những gì",
@@ -255,7 +255,7 @@
             "Bạn biết phường của mọi căn trong danh sách, theo cả tên cũ và tên mới.",
             "Bạn đã đi thử quãng đường đi làm vào đúng giờ thật.",
             "Bạn đã hỏi giá thuê gồm những gì và cọc được trả lại thế nào.",
-            "Bạn đã nhờ kiểm tra lại tình trạng nhà vài ngày trước khi đến.",
+            "Bạn đã nhắn hỏi lại chủ nhà hoặc môi giới xem nhà còn trống không, vài ngày trước khi đến.",
             "Bạn đã tính cả chi phí chuyển nhà. Xem [chuyển nhà ở Sài Gòn](/guides/saigonmoving) và [sắm đồ cho nhà mới](/furnishing-a-home-in-vietnam)."
           ]
         }
@@ -308,7 +308,7 @@
     },
     {
       "q": "Làm sao biết căn nhà Quận 7 còn trống trước khi đến?",
-      "a": "Trên eno.vn, mỗi tin cho thuê nhà Quận 7 có nút kiểm tra tình trạng nhà, gửi yêu cầu để đội ngũ eno kiểm tra căn đó còn trống hay không. Với tin của GoPlus, một đối tác chính thức của eno.vn, GoPlus trả lời trong chat eno.vn. Nên hỏi lại vài ngày trước khi đến, vì nhà ở Quận 7 có thể được thuê rất nhanh."
+      "a": "Để biết căn nhà Quận 7 còn trống trước khi đến, hãy nhắn tin cho chủ nhà, môi giới hoặc đối tác đăng tin qua chat trên eno.vn. Với tin của GoPlus, một đối tác chính thức của eno.vn, GoPlus tự trả lời tin của mình trong chat eno.vn. Với tin liên kết, nút trên tin mở tin gốc trên trang nguồn. Nên hỏi lại vài ngày trước khi đến, vì nhà ở Quận 7 có thể được thuê rất nhanh."
     }
   ],
   "sources": [
@@ -360,5 +360,5 @@
     "moving-to-vietnam-with-family-as-a-teacher",
     "your-first-weeks-in-ho-chi-minh-city"
   ],
-  "lastChecked": "2026-11-24"
+  "lastChecked": "2026-11-26"
 }

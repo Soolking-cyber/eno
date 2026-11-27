@@ -2,9 +2,19 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # eno · THE deploy. Since 2026-08-22 this is the only path from git to users.
 #
-#   bash eno-deploy.sh              · pull, build both, verify, swap, health-check
+#   bash eno-deploy.sh              · pull, build the marketplace, verify, swap, health-check
 #   bash eno-deploy.sh --no-pull    · rebuild what is already checked out
-#   bash eno-deploy.sh --rollback   · put the previously-SERVING images back, now
+#   bash eno-deploy.sh --rollback   · put the previously-SERVING eno-vn image back, now
+#
+# ⛔ ONE EDITION SINCE 2026-11-26 (owner: "make it clean distinction eno.vn marketplace eno.forum reach app"). Only the
+# marketplace (eno-vn:local → eno-vn-app, 127.0.0.1:3001, eno.vn) is built, swapped, verified, rolled back and purged.
+# The services edition (eno-forum:local → eno-forum-app, :3002) is no longer built: eno.forum is the Reach app (its own
+# repo, nginx reach.conf on the box, since 2026-11-04), so nothing public reached that container, and the crons only it
+# used to answer (storage-tombstones, visa-retention) run on eno.vn :3001. The IS_SERVICES code and the `.svc.` files
+# stay in the tree; no services image is built. A leftover eno-forum-app / eno-forum:prev on the box is ignored here and
+# removed by hand once (apps.compose.yml's header has the commands). ⚠️ THAT REMOVAL IS ONE-WAY: the deploy script before this
+# change refuses without eno-forum:prev and builds a services edition, so "revert to the last known-good commit" no longer
+# applies to this file once the forum images are gone — fix forward instead.
 #
 # ⛔ A PUSH IS NO LONGER A DEPLOY. Cloud Build was removed on 2026-08-22 (owner:
 # "remove cloud build entirely we preview locally and deploy on box from now on").
@@ -65,11 +75,8 @@ bad(){ printf '  \033[31m[XX]\033[0m %s\n' "$*"; }
 # ⚠️ FOR ADVISORY MISSES ONLY. `bad` counts nothing either (failures are counted by probe()'s and
 # purge_edge()'s return codes and by explicit `exit 1`), but it prints exactly like a real failure.
 warn(){ printf '  \033[33m[!!]\033[0m %s\n' "$*"; }
-# ⛔ eno.forum stopped serving the eno.vn copy when nginx stopped routing to its container (owner, 2026-11-04: the domain hosts the
-# internal marketing app; its vhosts and the old-link redirects live in that app's repo, scripts/box/reach.conf). nginx's own config
-# answers this, not a flag, so the two can never disagree. If it cannot be read the answer is yes: the checks run and fail loudly.
-# The container still runs, privately, for the cron jobs only it can answer (storage-tombstones, over 127.0.0.1:3002), so the image steps stay.
-forum_public(){ local c; c=$(nginx -T 2>/dev/null) || return 0; c=$(sed 's/#.*//' <<<"$c"); grep -q '127\.0\.0\.1:3002' <<<"$c"; }
+# (forum_public(), which asked nginx whether eno.forum still reached the services container, went with that edition on
+# 2026-11-26 — owner: eno.forum is Reach, and storage-tombstones / visa-retention run on eno.vn. See the header.)
 
 # ⛔ ONE DEPLOY AT A TIME. Two concurrent runs share the :local and :prev tags and a
 # single checkout: they can build from a moving tree, overwrite each other's rollback
@@ -118,44 +125,24 @@ probe(){
                     a=${1#https://}; a=${a#www.}
                     b=${2#https://}; b=${b#www.}
                     [ "$a" = "$b" ]; }
-  # `hostcheck URL WANT` — for the forum APEX only: the permanent 308 to `www` (next.config.ts moves the apex's pages
-  # there; `permanent: true` sends a 308, so a 301/302/307 is not that redirect) whose target then answers WANT.
-  # A DEPLOY must show the hop — an apex still answering 200 itself is the two-origin state the redirect removes. A
-  # ROLLBACK may also answer WANT directly: the images it restores can predate the redirect (review).
-  # ⚠️ NOT A LOOSER `check`: a plain check stays strict, or eno.vn/visa could pass a licensing line by redirecting.
-  hostcheck(){ local code target
-               code=$(curl -s -o /dev/null --max-time 25 -w '%{http_code} %{redirect_url}' "$1?d=$RANDOM$$")
-               case "$code" in
-                 308*) target=${code#* }; target=${target%%\?*}
-                      if canonical_pair "$1" "$target"; then printf '  %-38s %s → %s\n' "$1" "${code%% *}" "$target"; check "$target" "$2"
-                      else printf '  %-38s %s → %s ⛔ not the canonical host\n' "$1" "${code%% *}" "${target:-none}"; fail=1; fi ;;
-                 30*) printf '  %-38s %s ⛔ not the permanent 308 to www\n' "$1" "${code%% *}"; fail=1 ;;
-                 *) if [ "$mode" = rollback ] && [ "${code%% *}" = "$2" ]; then printf '  %-38s %s (restored images, before the redirect)\n' "$1" "${code%% *}"
-                    elif [ "${code%% *}" = "$2" ]; then printf '  %-38s %s ⛔ the apex should 308 to www\n' "$1" "${code%% *}"; fail=1
-                    else printf '  %-38s %s (want a 308 to www) ⛔\n' "$1" "${code%% *}"; fail=1; fi ;;
-               esac; }
+  # (hostcheck, the services edition's apex-308-to-www check, and every probe of eno.forum's copy went with that edition on
+  # 2026-11-26 — owner: eno.forum is Reach; storage-tombstones and visa-retention run on eno.vn.)
   check https://eno.vn/             200
-  if forum_public; then
-  hostcheck https://eno.forum/      200
-  check https://www.eno.forum/      200
-  else
-    # eno.forum is eno Reach (owner 2026-11-19: "dont redirect eno.forum to eno.vn we have reach app on eno.forum now"): every
-    # path is the app's, which answers with its own sign-in, and www.eno.forum goes to the apex. Box nginx reach.conf owns that
-    # routing, not this deploy, so a mismatch is a warning, never a reason to roll back a healthy eno.vn deploy.
-    got=$(curl -s -o /dev/null --max-time 15 -w '%{http_code} %{redirect_url}' https://eno.forum/privacy) || got="no answer"
-    case "$got" in
-      "307 https://eno.forum/signin"*|"200 "*) ok "https://eno.forum/privacy is answered by Reach" ;;
-      *) warn "https://eno.forum/privacy should be Reach's (its sign-in); it answered: $got" ;;
-    esac
-    got=$(curl -s -o /dev/null --max-time 15 -w '%{http_code} %{redirect_url}' https://www.eno.forum/privacy) || got="no answer"
-    [ "$got" = "301 https://eno.forum/privacy" ] && ok "https://www.eno.forum/privacy goes to eno.forum" \
-      || warn "https://www.eno.forum/privacy should 301 to https://eno.forum/privacy; it answered: $got"
-  fi
+  # eno.forum is eno Reach (owner 2026-11-19: "dont redirect eno.forum to eno.vn we have reach app on eno.forum now"): every
+  # path is the app's, which answers with its own sign-in, and www.eno.forum goes to the apex. Box nginx reach.conf owns that
+  # routing, not this deploy, so a mismatch is a warning, never a reason to roll back a healthy eno.vn deploy.
+  got=$(curl -s -o /dev/null --max-time 15 -w '%{http_code} %{redirect_url}' https://eno.forum/privacy) || got="no answer"
+  case "$got" in
+    "307 https://eno.forum/signin"*|"200 "*) ok "https://eno.forum/privacy is answered by Reach" ;;
+    *) warn "https://eno.forum/privacy should be Reach's (its sign-in); it answered: $got" ;;
+  esac
+  got=$(curl -s -o /dev/null --max-time 15 -w '%{http_code} %{redirect_url}' https://www.eno.forum/privacy) || got="no answer"
+  [ "$got" = "301 https://eno.forum/privacy" ] && ok "https://www.eno.forum/privacy goes to eno.forum" \
+    || warn "https://www.eno.forum/privacy should 301 to https://eno.forum/privacy; it answered: $got"
   # ⛔ THE LICENSING CHECK. eno.vn is a licensed sàn TMĐT and may not serve these at
   # all. A 200 here is a compliance failure, not a bug.
   check https://eno.vn/visa         404
   check https://eno.vn/itinerary    404
-  if forum_public; then hostcheck https://eno.forum/itinerary 200; fi
   # ⛔ THE SAME URL IN TWO LANGUAGES, WITH NO CACHE-BUSTER. Pages render in the visitor's language
   # at one public URL (src/proxy.ts), so a shared cache keyed on the URL alone would hand the first
   # visitor's language to everyone. `check` above appends ?d=… and can never see that; this cannot miss it.
@@ -183,9 +170,9 @@ probe(){
   # cache rule left on `www.eno.vn` or on the `eno.forum` apex would pass a one-host probe and break
   # real traffic (CLAUDE.md, 2026-08-02).
   # ⛔ THE `/vi` PILOT (V5). On eno.vn, `/` is pinned: a Vietnamese browser gets ENGLISH (with the
-  # banner), and `/vi` is Vietnamese even for an English browser. The forum never pilots, so it still
-  # adapts, and `/privacy` is the adaptive eno.vn page. Besides the two piloted `/vi` URLs only the phase-1
-  # families' `/vi…` exist (FAMILIES_EXPECT); every other `/vi…` (an app page) is the old 404, and the forum's `/vi` too.
+  # banner), and `/vi` is Vietnamese even for an English browser. `/privacy` is the adaptive eno.vn page.
+  # Besides the two piloted `/vi` URLs only the phase-1
+  # families' `/vi…` exist (FAMILIES_EXPECT); every other `/vi…` (an app page) is the old 404.
   # ⚠️ A ROLLBACK PROBES WHAT THE RESTORED IMAGES SERVE, NOT WHAT THIS SCRIPT SHIPS: restore() puts back
   # `:prev`, which may predate the pilot, and failing that rollback for being pre-pilot would report a
   # healthy restore as "DID NOT RESTORE SERVICE". So `probe rollback` reads the state from `/vi`'s own
@@ -233,12 +220,6 @@ probe(){
       fi
     done
   done
-  if forum_public; then
-  for h in https://eno.forum https://www.eno.forum; do
-    langcheck "$h/" vi-VN vi
-    langcheck "$h/" en-US en
-  done
-  fi
   langcheck https://eno.vn/privacy vi-VN vi
   langcheck https://eno.vn/privacy en-US en
   # ⛔ THE PHASE-1 FAMILIES: `/vi/c/rentals` is Vietnamese for an English browser; the plain `/c/rentals` still
@@ -252,7 +233,6 @@ probe(){
     check https://eno.vn/vi/c/rentals 404
   fi
   check https://eno.vn/vi/dashboard 404
-  if forum_public; then check https://www.eno.forum/vi    404; fi
   # ⚠️ AND THE COOKIE PATH, WHICH THE HEADER PROBES ABOVE NEVER EXERCISE: a returning visitor carries
   # `lang`, the proxy prefers it over Accept-Language, and the box's micro-cache keys on it. An English
   # browser holding a Vietnamese cookie must get Vietnamese.
@@ -274,10 +254,6 @@ probe(){
   # ⚠️ eno.vn's cookie check reads /privacy, not `/`: the pinned `/` ignores the cookie by design (V-a),
   # so only an adaptive page can show the cookie path working.
   cookiecheck https://eno.vn/privacy
-  if forum_public; then
-  cookiecheck https://eno.forum/
-  cookiecheck https://www.eno.forum/
-  fi
   if [ "$pilot" = on ]; then
     cookiecheck https://eno.vn/vi en vi   # the twin stays Vietnamese for a stored English choice
     cookiecheck https://eno.vn/ vi en     # and the pinned `/` stays English for a stored Vietnamese one
@@ -347,7 +323,9 @@ pin_prev(){
     bad "only good rollback. Resolve that deploy first, then remove the marker."
     exit 1
   fi
-  for pair in eno-vn-app:eno-vn eno-forum-app:eno-forum; do
+  # eno-vn only: the services edition (eno-forum-app) stopped being built on 2026-11-26 (owner — eno.forum is Reach, and its
+  # crons run on eno.vn), so a leftover eno-forum-app is neither pinned nor required, and a stopped or removed one refuses nothing.
+  for pair in eno-vn-app:eno-vn; do
     c=${pair%%:*}; t=${pair##*:}
     id=$(docker inspect -f '{{.Image}}' "$c" 2>/dev/null)
     if [ -n "$id" ] && docker tag "$id" "$t:prev" 2>/dev/null; then
@@ -398,10 +376,8 @@ pin_prev(){
 # Put :local back to the last known-good so that a reboot, or compose's
 # restart:unless-stopped, cannot bring up an image we just refused.
 untag_bad(){
-  local t
-  for t in eno-vn eno-forum; do
-    docker image inspect "$t:prev" >/dev/null 2>&1 && docker tag "$t:prev" "$t:local"
-  done
+  # eno-vn only since 2026-11-26 (owner): no services image is built, so there is no eno-forum:local to put back.
+  docker image inspect eno-vn:prev >/dev/null 2>&1 && docker tag eno-vn:prev eno-vn:local
   bad ":local restored to :prev so nothing can start the rejected image"
 }
 
@@ -422,7 +398,9 @@ EDGE_DEPLOY_TAGS="eno-html,eno-public"
 cf_purge(){   # $1 = JSON body, $2 = what it is, for the log
   local z out fail=0 try
   [ -n "${CF_TOKEN:-}" ] || { bad "CF_TOKEN unset"; return 1; }
-  for z in 55e558b62f68a44f8177d7d98cb5369e cc81e3ff1d792c0aa5384e8feab21efa; do
+  # ⛔ eno.vn's zone ONLY since 2026-11-26 (owner): the eno.forum zone (cc81e3ff…) is the Reach app's, which this deploy does
+  # not build — a rollback's purge_everything there would empty Reach's cache for nothing. No services edition is built.
+  for z in 55e558b62f68a44f8177d7d98cb5369e; do
     # One retry: tag/host/everything purges share a 5-per-minute account bucket on Free, so a deploy right
     # after a rollback (or a data script's purge) can briefly hit it.
     for try in 1 2; do
@@ -463,7 +441,7 @@ edge_html_fresh(){
 drop_new_static(){
   [ -n "${SS:-}" ] || return 0
   if [ -n "${NEWBID_VN:-}" ] && [ "$NEWBID_VN" != "${PREVBID_VN:-}" ]; then "$SS" drop marketplace "$NEWBID_VN" || bad "could not drop $NEWBID_VN from disk"; fi
-  if [ -n "${NEWBID_FO:-}" ] && [ "$NEWBID_FO" != "${PREVBID_FO:-}" ]; then "$SS" drop services "$NEWBID_FO" || bad "could not drop $NEWBID_FO from disk"; fi
+  # (no services build to drop: that edition stopped being built on 2026-11-26 — owner, eno.forum is Reach)
   return 0
 }
 
@@ -512,17 +490,12 @@ restore(){
   # servable from disk, and any edge copy of them must go. Rollbacks are rare; the full refill is the right price.
   PURGE_ALL=1
   drop_new_static
-  # ⛔ BOTH OR NEITHER. Rolling back only one edition leaves the marketplace and the
-  # services build on DIFFERENT commits — and the boundary between them is exactly what
-  # differs between commits. A half rollback that reports success is worse than none.
-  local t
-  for t in eno-vn eno-forum; do
-    docker image inspect "$t:prev" >/dev/null 2>&1 || { bad "$t:prev MISSING — refusing a partial rollback"; return 1; }
-  done
-  for t in eno-vn eno-forum; do docker tag "$t:prev" "$t:local"; done
-  for svc in eno-vn eno-forum; do
-    docker compose -f "$COMPOSE" up -d --force-recreate "$svc" || { bad "compose failed during rollback"; return 1; }
-  done
+  # ⛔ eno-vn ALONE. This was "both or neither" while two editions shipped; the services edition stopped being built on
+  # 2026-11-26 (owner — eno.forum is Reach; storage-tombstones and visa-retention run on eno.vn). A leftover
+  # eno-forum:prev on the box is ignored: it can neither refuse this rollback nor be restored by it.
+  docker image inspect eno-vn:prev >/dev/null 2>&1 || { bad "eno-vn:prev MISSING — nothing to roll back to"; return 1; }
+  docker tag eno-vn:prev eno-vn:local
+  docker compose -f "$COMPOSE" up -d --force-recreate eno-vn || { bad "compose failed during rollback"; return 1; }
   sleep 10
   bridge_down || return 1   # it covered the rollback's own swap; it must never answer the probe below
   # ⚠️ RETURN THE PROBE'S STATUS. This used to end `probe && ok … || bad …`, and the
@@ -583,6 +556,18 @@ fi
 # cached for six hours is cosmetic. What must wait until after the pull is the REFUSAL: see the
 # note on the gate below.
 if [ "$ROLLBACK" = 1 ]; then restore; exit $?; fi
+
+# ⛔ NOTHING PUBLIC MAY STILL ROUTE TO THE RETIRED SERVICES CONTAINER (commit gate, 2026-11-26). It is no longer rebuilt, so a
+# vhost still proxying to 127.0.0.1:3002 would serve a frozen image that every later fix misses — and every deploy would still
+# go green. nginx's own config answers it (measured 2026-11-26: no route). Refused before anything is pulled or built.
+# ⚠️ A HERE-STRING, NOT A PIPE (commit gate round 2): `nginx -T | sed | grep -q` lets grep exit at its first match, sed dies of
+# SIGPIPE and, under pipefail, the `if` reads FALSE on exactly the config that has the route. And an unreadable nginx refuses —
+# "could not look" is never "no route".
+NGINX_CONF=$(nginx -T 2>/dev/null) || { bad "nginx -T failed — cannot prove nothing routes to the retired services edition; refusing"; exit 1; }
+if grep -q '127\.0\.0\.1:3002' <<<"$(sed 's/#.*//' <<<"$NGINX_CONF")"; then
+  bad "nginx still routes to 127.0.0.1:3002 (the retired services edition, no longer deployed) — remove that route first"; exit 1
+fi
+unset NGINX_CONF
 
 say "1. source"
 cd "$APP" || { bad "no $APP"; exit 1; }
@@ -697,11 +682,10 @@ pin_prev
 # ⛔ opus's catch: pin_prev only LOGGED when a container was missing. The script then
 # built, swapped, and — if the probe failed — hit "NO :prev IMAGES EXIST" with the site
 # already down. Refuse to start a deploy that has no way back.
-for t in eno-vn eno-forum; do
-  docker image inspect "$t:prev" >/dev/null 2>&1 || {
-    bad "no $t:prev — this deploy would have NO ROLLBACK. Start the container first,"
-    bad "or tag a known-good image as $t:prev deliberately."; exit 1; }
-done
+# eno-vn only: no services image is built since 2026-11-26 (owner — eno.forum is Reach), so eno-forum:prev is not required.
+docker image inspect eno-vn:prev >/dev/null 2>&1 || {
+  bad "no eno-vn:prev — this deploy would have NO ROLLBACK. Start the container first,"
+  bad "or tag a known-good image as eno-vn:prev deliberately."; exit 1; }
 
 say "4. install the build helper FROM THE REPO"
 # ⛔ ALL THREE REVIEWERS CAUGHT THIS. eno-build.sh was committed to the repo in the
@@ -741,14 +725,14 @@ else
 fi
 SS=/opt/eno/bin/eno-static-sync.sh
 
-say "5. build (sequential — 4 cores shared with the containers still serving)"
+say "5. build the marketplace (4 cores shared with the containers still serving)"
 # ⚠️ The install scripts pull ~85MB from GitHub (libvips + a 78MB ffmpeg binary) and
 # that download has failed transiently twice in one evening. eno-build.sh now fails
 # loudly and asserts the image ID changed, so a failure here is real — but retry once
 # before investigating.
 # ⚠️ THE CLASSROOM'S SPEECH SERVER STEPS ASIDE WHILE THE APPS BUILD (infra/vn-node/classroom-speech/README.md).
 # A Next.js build is the biggest memory peak this box sees, the box has no swap, and that container holds 1.2-1.7 GB
-# of models — stopped here (a pause would keep the memory), started again after both builds, whatever they did.
+# of models — stopped here (a pause would keep the memory), started again after the build, whatever it did.
 # Learners get "try again" for those minutes; the sites never notice. No container, nothing happens.
 SPEECH_PAUSED=0
 resume_speech(){
@@ -766,13 +750,13 @@ if docker ps -q --filter name='^eno-classroom-speech$' | grep -q .; then
     trap 'resume_speech; rm -f "${ENO_DEPLOY_SELF:-}" "${MAN_ERR:-}"' EXIT
   else warn "could not stop eno-classroom-speech — building beside it"; fi
 fi
-for ed in marketplace services; do
-  if ! /opt/eno/bin/eno-build.sh "$ed"; then
-    bad "$ed build FAILED — nothing swapped, users unaffected"; resume_speech; untag_bad; exit 1
-  fi
-done
+# The marketplace only: the services edition stopped being built on 2026-11-26 (owner — eno.forum is Reach; storage-tombstones
+# and visa-retention run on eno.vn). eno-build.sh still accepts `services` for a hand build; this deploy never asks for one.
+if ! /opt/eno/bin/eno-build.sh marketplace; then
+  bad "marketplace build FAILED — nothing swapped, users unaffected"; resume_speech; untag_bad; exit 1
+fi
 resume_speech
-ok "both images built"
+ok "marketplace image built"
 
 say "6. edition boundary, read from the ARTIFACT"
 # ⛔ SOURCE LINTS DO NOT PROVE THIS. `npm run lint` runs edition-lint.mjs over the
@@ -784,8 +768,8 @@ say "6. edition boundary, read from the ARTIFACT"
 # the script printed "no visa/itinerary routes" and DEPLOYED. The one check whose
 # failure is a legal problem could not tell "clean" from "did not run". So read the
 # manifest first, prove it is non-empty and really is the manifest, and only then judge.
-# ⛔ RETRIED, EXACTLY LIKE THE FORUM READ BELOW — AND THIS ONE WAS THE HALF LEFT BEHIND. The forum
-# gate carries a note about a read coming back empty on a 4-core box that had just built two images
+# ⛔ RETRIED, EXACTLY LIKE THE FORUM READ THAT SAT BELOW UNTIL 2026-11-26 — AND THIS ONE WAS THE HALF LEFT BEHIND. The forum
+# gate carried a note about a read coming back empty on a 4-core box that had just built two images
 # while still serving both editions; that hardening never reached this read. It bit on 2026-08-27:
 # the build succeeded, both images exported, sharp passed, and THIS `docker run` returned nothing —
 # so a healthy deploy was refused and rolled back with a message pointing at the bundle.
@@ -834,8 +818,8 @@ read_manifest() {
 }
 complete_manifest() { case "$1" in *__MANIFEST_END__*) return 0 ;; *) return 1 ;; esac; }
 
-: > "$MAN_ERR"   # ⚠️ per-GATE, not per-script: without this a vn attempt-1 error survives into the
-                 # forum gate's output and gets reported as forum evidence — the same misattributed
+: > "$MAN_ERR"   # ⚠️ per-GATE, not per-script: without this an earlier attempt's error survives into the
+                 # next gate's output and gets reported as its evidence — the same misattributed
                  # diagnosis this whole section exists to delete.
 for attempt in 1 2; do
   read_manifest eno-vn:local
@@ -971,56 +955,9 @@ case "$SIB" in
     sib_refuse "COULD NOT READ the route-sibling lists from eno-vn:local after 2 attempts (a READ failure, not evidence about the bundle)" ;;
 esac
 
-# ⛔ opus's catch: the swap starts BOTH containers and only one image was ever inspected.
-# A services build that picked up the wrong env file ships a marketplace bundle onto
-# eno.forum — caught only later by the /itinerary probe, after it is serving. Assert the
-# forum image POSITIVELY carries what only it may carry.
-# ⛔ AND IT MUST FAIL CLOSED THE SAME WAY THE MARKETPLACE CHECK ABOVE DOES — THIS ONE DID NOT,
-# AND IT COST A FALSE REJECTION ON 2026-08-23. The first version ran the container once and
-# grepped the result. An empty `docker run` and a genuinely wrong edition produce the SAME
-# failure, which is why the message below had to hedge with "or the manifest could not be read":
-# it could not tell them apart. On d15ea614 it rejected a PERFECTLY GOOD forum image — read
-# afterwards straight out of the rejected layer, it had 299 routes and /itinerary/page present.
-# Two containers had just been built on a 4-core box that is also serving both editions, and the
-# read came back empty. The gate above was hardened against exactly this ("this is NOT evidence of
-# a clean bundle"); this one was left behind.
-# ⚠️ A RETRY IS NOT A WEAKENING. It never accepts an empty read — it distinguishes "could not
-# read" (retry, then refuse with an honest reason) from "read fine, wrong edition" (refuse
-# immediately). Both still refuse; only the diagnosis differs, and a wrong diagnosis sends the
-# next person to fix an env file that was never broken.
-# ⛔ THE SAME STRUCTURAL READ AS THE MARKETPLACE GATE ABOVE. A reviewer flagged that the first
-# version of this fix hardened only the vn read, leaving the two siblings silently different — which
-# is precisely how this read came to be missing the retry in the first place.
-FMAN=""
-: > "$MAN_ERR"
-for attempt in 1 2; do
-  read_manifest eno-forum:local
-  FMAN="$MAN_OUT"
-  complete_manifest "$FMAN" && break
-  [ "$attempt" = 1 ] && sleep 3
-done
-if ! complete_manifest "$FMAN"; then
-  bad "COULD NOT READ a complete route manifest from eno-forum:local after 2 attempts — refusing."
-  bad "(exit $MAN_RC$([ "$MAN_RC" = 3 ] && echo ' = manifest parsed but had < 50 routes'); $(count_routes "$FMAN") routes before the stream ended, no end-marker)"
-  [ -s "$MAN_ERR" ] && sed 's/^/      /' "$MAN_ERR"
-  bad "(a READ failure unless the exit code says otherwise — NOT evidence about the edition)"
-  untag_bad; exit 1
-fi
-# ⚠️ `(/\[lang\])?` for the same reason as LEAK above: the key is `/[lang]/itinerary/page` now, and
-# the old literal would have refused every healthy forum build.
-# ⛔ A HERE-STRING, NEVER `printf … | grep -q`, UNDER `set -o pipefail`. grep -q exits at its FIRST
-# match and closes the pipe; bash's printf builtin writes the manifest in several chunks, so a later
-# chunk can hit the closed pipe and die of SIGPIPE (141) — even though the manifest (27.6 KB) is under
-# the pipe buffer. pipefail fails the pipeline and the `!` turned that into "has NO /itinerary/page".
-# MEASURED ON THE BOX 2026-09-24 with the real forum manifest (route on line 101): the pipe form
-# rejected 2 of 8 runs (PPRPPRPP). That is the "intermittent false rejection" recorded five times
-# (2026-08-23 … 2026-09-24). src/lib/deploy-script.test.ts keeps it from coming back.
-if ! grep -qE '"(/\[lang\])?/itinerary/page"' <<<"$FMAN"; then
-  bad "eno-forum:local was read cleanly ($(printf '%s' "$FMAN" | grep -oE '\"/[^\"]*\"' | sort -u | wc -l | tr -d ' ') routes) but has NO /itinerary/page."
-  bad "It is not the services edition — built with the wrong env file."
-  untag_bad; exit 1
-fi
-ok "forum: services edition confirmed (/itinerary/page present)"
+# (The services-edition gate — eno-forum:local must carry /itinerary/page — went with that edition on 2026-11-26: owner,
+# eno.forum is Reach and storage-tombstones / visa-retention run on eno.vn, so no services image is built to check.
+# The pipefail here-string rule it taught, src/lib/deploy-script.test.ts, still holds for every grep -q in this file.)
 
 say "6b. publish static from disk — old builds stay servable (speed plan item 2)"
 # ⛔ BEFORE THE SWAP, AFTER EVERY EDITION GATE ABOVE. A build that failed step 6 never reaches disk, and once the
@@ -1029,18 +966,17 @@ say "6b. publish static from disk — old builds stay servable (speed plan item 
 # a no-op except on the first deploy after the tree was created.
 # ⛔ FATAL ON FAILURE, AND NOTHING HAS CHANGED YET. Without the files on disk a tag-only purge would leave old
 # HTML pointing at chunks the new container lacks. `--no-static` deploys the old way (purge everything).
-NEWBID_VN=; NEWBID_FO=; PREVBID_VN=; PREVBID_FO=
+NEWBID_VN=; PREVBID_VN=
 if [ "$NO_STATIC" = 1 ]; then
   warn "--no-static: step 6b skipped; this deploy purges EVERYTHING at step 8 (the old behaviour)"
 else
-  for e in "eno-vn marketplace eno.vn" "eno-forum services www.eno.forum"; do
+  # One entry since 2026-11-26 (owner): the services edition ("eno-forum services www.eno.forum") is not built any more —
+  # eno.forum is Reach, and its crons run on eno.vn. Its old static tree on disk is no longer ingested, pruned or dropped.
+  for e in "eno-vn marketplace eno.vn"; do
     read -r img ed host <<<"$e"
     pb=$("$SS" ingest "$ed" "$img:prev") || { bad "static ingest of $img:prev FAILED — nothing swapped"; untag_bad; exit 1; }
     nb=$("$SS" ingest "$ed" "$img:local") || { bad "static ingest of $img:local FAILED — nothing swapped"; untag_bad; exit 1; }
-    if [ "$ed" = marketplace ]; then PREVBID_VN=$pb; NEWBID_VN=$nb; else PREVBID_FO=$pb; NEWBID_FO=$nb; fi
-    # ⛔ A retired eno.forum has no nginx vhost for this edition (the name now redirects), so this proof cannot pass and nothing
-    # public can ask for these files. The forum container still swaps below and the ingest above still runs.
-    if [ "$ed" = services ] && ! forum_public; then ok "$host: retired, static build not proven through nginx"; continue; fi
+    PREVBID_VN=$pb; NEWBID_VN=$nb
     # nginx, not the app: the RUNNING container cannot serve the new build's manifest, so a 200 with a strong
     # (non-W/) ETag proves the disk tree is live behind this vhost. Through the tunnel listener on loopback,
     # never through the edge — a probe through Cloudflare would cache the new build before the swap.
@@ -1061,6 +997,7 @@ say "7. swap"
 # eno-forum simultaneously, so every deploy took BOTH domains down together for the
 # restart plus the settle wait — worse than the Cloud Run revision switch this replaces,
 # and worse again on rollback. Staggering keeps one edition serving throughout.
+# (Moot since 2026-11-26: only eno-vn is swapped — owner, the services edition is not built; eno.forum is Reach.)
 # ⛔ MARK BEFORE TOUCHING ANYTHING. codex's catch: this marker used to be written after
 # both containers were swapped. An ssh drop or a kill mid-swap left new, unverified images
 # running with NO marker — and the next run's pin_prev would then tag those as :prev,
@@ -1089,7 +1026,9 @@ if [ -f "$APP/infra/vn-node/eno-image-cache-prune.sh" ]; then
     || bad "⚠️ could not install eno-image-cache-prune.timer — the optimizer cache volume is now UNBOUNDED; install it by hand (see infra/vn-node/image-serving.md)"
 fi
 
-for svc in eno-vn eno-forum; do
+# eno-vn only (2026-11-26, owner): eno-forum is no longer in apps.compose.yml, so compose reports a leftover eno-forum-app as
+# an orphan (a warning, never an error) until the operator removes it; nothing here touches it.
+for svc in eno-vn; do
   # ⛔ ADOPTING A HAND-CREATED CONTAINER IS A ONE-WAY DOOR, SO IT IS EXPLICIT.
   # Both app containers were started by hand with `docker run --name …` and carry no
   # com.docker.compose.project label. Compose will not adopt a container it did not
@@ -1144,25 +1083,26 @@ done
 # with two deploys that day each stranding a build's worth, against 24 GB free. cache-handler.cjs no longer
 # writes payloads on the box (pgPayloads), so this is the backstop for any that remain or that an
 # ENO_ISR_PG_PAYLOADS opt-in writes later.
-# ⚠️ ONLY `eno:isr:` KEYS, and ONLY when BOTH build ids were read. An empty id would turn "not current" into
+# ⚠️ ONLY `eno:isr:` KEYS, and ONLY when the build id was read. An empty id would turn "not current" into
 # "everything"; the rate-limit and site-stats KV share this table under other prefixes and are not touched.
 # ⚠️ NON-FATAL: the swap has already succeeded, and a failed tidy must not fail a good deploy.
 # ⚠️ VALIDATE THE IDS, DO NOT SANITISE THEM. Rewriting an unexpected id (stripping a ".") would leave it
 # non-empty and delete the very rows it names; an id that is not the shape Next writes skips the cleanup.
+# eno-vn's id alone since 2026-11-26 (owner): no services build is served, so the services edition's rows (eno:isr:services:…)
+# are rows no SERVING container reads and go too — a leftover eno-forum-app only re-renders, and nothing public reaches it.
 BID_VN=$(docker exec eno-vn-app cat /app/.next/BUILD_ID 2>/dev/null) || BID_VN=
-BID_FO=$(docker exec eno-forum-app cat /app/.next/BUILD_ID 2>/dev/null) || BID_FO=
-BID_VN=${BID_VN//[$'\n\r']/}; BID_FO=${BID_FO//[$'\n\r']/}
-if [[ "$BID_VN" =~ ^[A-Za-z0-9_-]+$ ]] && [[ "$BID_FO" =~ ^[A-Za-z0-9_-]+$ ]]; then
+BID_VN=${BID_VN//[$'\n\r']/}
+if [[ "$BID_VN" =~ ^[A-Za-z0-9_-]+$ ]]; then
   # A statement timeout, because both apps read this table; and psql's EXIT STATUS decides the message —
   # a failed delete must not be reported as "dropped 0".
   if stale=$(docker exec supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 -A -t -c \
-      "set statement_timeout = '60s'; with d as (delete from next_cache where key like 'eno:isr:%' and split_part(key, ':', 4) not in ('$BID_VN', '$BID_FO') returning 1) select count(*) from d" </dev/null 2>&1); then
-    ok "dropped $(printf '%s' "$stale" | tail -1 | tr -dc '0-9') ISR rows from builds no container can read (current: vn=$BID_VN forum=$BID_FO)"
+      "set statement_timeout = '60s'; with d as (delete from next_cache where key like 'eno:isr:%' and split_part(key, ':', 4) <> '$BID_VN' returning 1) select count(*) from d" </dev/null 2>&1); then
+    ok "dropped $(printf '%s' "$stale" | tail -1 | tr -dc '0-9') ISR rows from builds no container can read (current: vn=$BID_VN)"
   else
     bad "stale ISR cleanup FAILED (deploy unaffected): $(printf '%s' "$stale" | grep -m1 -E 'ERROR|FATAL|Error' || printf '%s' "$stale" | head -1)"
   fi
 else
-  bad "BUILD_IDs not readable or unexpected (vn='$BID_VN' forum='$BID_FO') — skipped the stale ISR cleanup"
+  bad "BUILD_ID not readable or unexpected (vn='$BID_VN') — skipped the stale ISR cleanup"
 fi
 
 say "8. purge Cloudflare (tags $EDGE_DEPLOY_TAGS) — BEFORE verifying, not after"
@@ -1192,9 +1132,10 @@ elif ! purge_edge; then
 fi
 # ⛔ READ IT BACK, AND FALL BACK TO THE OLD PURGE IF THE TAGS DID NOT TAKE (both reviewers, gate review): Cloudflare's
 # success:true proves nothing about eviction, and a tag purge that missed would leave the pre-deploy page up for six
-# hours with this deploy reporting green. The edge's `/` must carry the BUILD_ID the containers report (step 7).
+# hours with this deploy reporting green. The edge's `/` must carry the BUILD_ID the container reports (step 7).
+# eno.vn only: www.eno.forum's read-back went with the services edition on 2026-11-26 (owner — eno.forum is Reach).
 if [ "$SKIP_PURGE" != 1 ] && [ "$PURGE_ALL" != 1 ]; then
-  if ! { edge_html_fresh eno.vn "$BID_VN" && { ! forum_public || edge_html_fresh www.eno.forum "$BID_FO"; }; }; then
+  if ! edge_html_fresh eno.vn "$BID_VN"; then
     bad "the tag purge did not refresh the edge — falling back to purge_everything"
     PURGE_ALL=1
     if ! purge_edge; then
@@ -1204,7 +1145,7 @@ if [ "$SKIP_PURGE" != 1 ] && [ "$PURGE_ALL" != 1 ]; then
       bad "site, then remove /opt/eno/deploy-incomplete (left in place so the next run cannot pin these images)."
       exit 1
     fi
-    edge_html_fresh eno.vn "$BID_VN"; ! forum_public || edge_html_fresh www.eno.forum "$BID_FO"
+    edge_html_fresh eno.vn "$BID_VN"
   fi
 fi
 
@@ -1234,8 +1175,8 @@ docker ps --format '  {{.Names}}\t{{.Image}}\t{{.Status}}' | grep -E 'eno-(vn|fo
 # 30 days (eno-static-sync.sh); a failure only means the tree grows until the next deploy prunes it.
 if [ "$NO_STATIC" != 1 ]; then
   "$SS" prune marketplace $NEWBID_VN $PREVBID_VN || warn "static prune (marketplace) failed — advisory"
-  "$SS" prune services $NEWBID_FO $PREVBID_FO || warn "static prune (services) failed — advisory"
-  "$SS" status marketplace 2>/dev/null | sed 's/^/  /'; "$SS" status services 2>/dev/null | sed 's/^/  /'
+  # (no services prune/status: that edition stopped being built on 2026-11-26 — owner, eno.forum is Reach)
+  "$SS" status marketplace 2>/dev/null | sed 's/^/  /'
 fi
 
 say "11. warm the caches (advisory: nothing here can fail or roll back this deploy)"

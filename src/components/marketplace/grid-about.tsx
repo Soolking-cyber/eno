@@ -1,5 +1,7 @@
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { SITE_NAME } from '@/lib/edition'
+import type { WardName } from '@/lib/district-wards'
+import { joinNames } from '@/lib/join-names'
 
 /**
  * ⛔ THE CATEGORY AND DISTRICT PAGES' WORDS UNDER THE GRID (owner, 2026-11-26: "Add below the cards"). Seobility's "Pages with
@@ -19,6 +21,21 @@ export function GridLedeTail() {
     <Bilingual
       en="Each listing opens its own page with all the details it carries, and new listings are added here as they are posted."
       vi="Mỗi tin mở ra trang riêng với đầy đủ thông tin của tin, và khi có tin mới, tin sẽ được thêm vào đây."
+    />
+  )
+}
+
+/**
+ * A district page's lede tail when it knows three wards or more (district-wards.ts): the wards are words no other district's
+ * page has, where the general sentence above made D12 and D8 one page to Seobility (crawl 11). Names as stored, both languages.
+ */
+export function GridWards({ wards }: { wards: readonly WardName[] }) {
+  return (
+    <Bilingual
+      en="The wards with the most listings here: {wards}."
+      vi="Các phường có nhiều tin nhất ở đây: {wards}."
+      values={{ wards: joinNames(wards.map((w) => w.en), 'en') }}
+      valuesVi={{ wards: joinNames(wards.map((w) => w.vi), 'vi') }}
     />
   )
 }

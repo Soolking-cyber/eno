@@ -232,7 +232,7 @@
             },
             {
               "title": "Ask about availability",
-              "text": "The Check availability button asks the eno team to check whether a home is still free. On 24 November 2026 it covered up to five homes at once. Listings marked Official partner come from GoPlus, an official eno.vn partner, which answers in eno.vn chat."
+              "text": "To ask whether a home is still free, message the landlord, agent or partner in eno.vn chat. Listings marked Official partner come from GoPlus, an official eno.vn partner, which answers its own listings in eno.vn chat. On a linked listing, the button opens the original posting on its source site, where you contact the poster."
             }
           ]
         },
@@ -432,5 +432,5 @@
     "your-first-weeks-in-ho-chi-minh-city",
     "is-ho-chi-minh-city-safe"
   ],
-  "lastChecked": "2026-11-24"
+  "lastChecked": "2026-11-26"
 }

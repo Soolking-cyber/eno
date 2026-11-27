@@ -16,9 +16,11 @@
 #
 # ⛔ DANGLING ONLY. NEVER `docker system prune -a`, and never `--filter until=`.
 # `-a` removes every image not used by a RUNNING container, which takes:
-#   · eno-vn:prev / eno-forum:prev — the rollback eno-deploy.sh pins BEFORE it swaps.
-#     Deleting those turns a failed deploy from "roll back" into "rebuild under
-#     pressure", which is the worst moment to discover it.
+#   · eno-vn:prev — the rollback eno-deploy.sh pins BEFORE it swaps.
+#     Deleting it turns a failed deploy from "roll back" into "rebuild under
+#     pressure", which is the worst moment to discover it. (eno-forum:prev is no longer pinned:
+#     the services edition stopped being built on 2026-11-26 — owner, eno.forum is Reach. Its
+#     leftover tags are removed by hand, once; apps.compose.yml's header has the commands.)
 #   · eno-*:verified-<sha> — the last artefact proven against the edition boundary.
 # This script removes untagged layers only, which is where the 69GB actually is.
 #

@@ -63,6 +63,15 @@ describe('titleWithPrice (Seobility 2026-11-23: listing titles 953–1045 px aga
     expect(long.endsWith('… — 1,250,000 đ')).toBe(true)
     expect(long.startsWith('Robusta clean 25% black')).toBe(true)
   })
+
+  it('drops a tail too long to share the line rather than leave the title a stump (Bing site scan 2026-11-27)', () => {
+    const t = titleWithPrice('Science Teacher for an international primary school', 'Competitive salary based on experience and qualifications', 'eno.vn')
+    expect(t).not.toMatch(/Competitive/)
+    expect(t.startsWith('Science Teacher for an')).toBe(true)
+    expect(fitsTitle(t, 60)).toBe(true)
+    // A real price still shares the line.
+    expect(titleWithPrice('2-bedroom apartment, 79 m² · Vinhomes Golden River, District 1', '34,680,000 đ', 'eno.vn')).toMatch(/— 34,680,000 đ$/)
+  })
 })
 
 describe('shopTitle (Seobility 2026-11-23: "ShopDunk | eno.vn" too short to say what the page is)', () => {

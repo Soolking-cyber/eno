@@ -4,6 +4,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { NewIphoneBlock, newIphoneOffers } from '../iphone-18-vietnam/new-offers-block'
 import { titleWithSite } from '@/lib/meta-description'
 
 /**
@@ -15,6 +16,14 @@ import { titleWithSite } from '@/lib/meta-description'
  * much of the price gap comes back at resale. Translating the English page would spend half its
  * length explaining vocabulary the reader already has.
  */
+/**
+ * ⚠️ ONE HOUR, SINCE 2026-11-26, for the "iPhone 18 on eno.vn" block under the intro (new-offers-block.tsx) — the cheapest new
+ * Pro, Pro Max and Duo the shops list here. The article itself is static text; the block reads live listings, so without a
+ * `revalidate` a page built before the import would never show it. With none listed (or a failed read) the block is absent and
+ * the page is the article as it always was.
+ */
+export const revalidate = 3600
+
 const SLUG = 'iphone-chinh-hang-va-xach-tay'
 
 const CONTENT: ArticleContent = {
@@ -150,6 +159,8 @@ export const metadata: Metadata = withShare({
   alternates: phoneGuideAlternates(SLUG),
 }, { type: 'article' })
 
-export default function IPhoneChinhHangVaXachTayPage() {
-  return <SeoArticle content={CONTENT} />
+export default async function IPhoneChinhHangVaXachTayPage() {
+  // `ledeRow` only WITH rows: an empty one would still move the phone's "On this page" row up under the lede (SeoArticle).
+  const offers = await newIphoneOffers()
+  return <SeoArticle content={offers.length ? { ...CONTENT, ledeRow: <NewIphoneBlock lang="vi" rows={offers} /> } : CONTENT} />
 }

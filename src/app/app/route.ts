@@ -99,10 +99,13 @@ const COPY: Record<AppLang, AppCopy> = {
 }
 
 /** A minimal, dependency-free page — this runs before any app shell and must render on a cold tab. */
-function page(lang: AppLang, title: string, body: string) {
+function page(lang: AppLang, title: string, body: string, description: string) {
+  // A description too, though the page is noindex (Bing site scan 2026-11-27 flags its absence as an error): the copy's own
+  // two lines, both hand-written per language.
   return new NextResponse(
     `<!doctype html><html lang="${lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="${NOINDEX}"><title>${title}</title>
+<meta name="description" content="${description}">
 <style>body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:24px;
 font:400 17px/1.55 system-ui,-apple-system,sans-serif;color:#0f172a;background:#f8fafc;text-align:center}
 h1{font-size:20px;margin:0 0 8px}p{margin:8px 0}a{color:#0e65bc;font-weight:700}
@@ -136,5 +139,6 @@ export function GET(req: NextRequest) {
     `<h1>${c.title}</h1>
 <p>${c.body}</p>
 <div class="row"><a class="btn" href="${ANDROID_APP_URL}">Google Play</a><a class="btn" href="${IOS_APP_URL}">App Store</a></div>`,
+    `${c.title}: ${c.body.replace(/[:：]\s*$/u, '')} (Google Play, App Store).`,
   )
 }

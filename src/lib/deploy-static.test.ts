@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { execFileSync, spawnSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -23,7 +23,7 @@ const at = (needle: string) => {
 
 describe('eno-deploy.sh — static on disk before the swap, tags instead of purge_everything', () => {
   it('step 6b runs after every edition gate and before anything is swapped', () => {
-    const gate = at('ok "forum: services edition confirmed')
+    const gate = at('ok "marketplace: no services route name in its route tree')
     const ingest = at('say "6b. publish static from disk')
     const swap = at('say "7. swap"')
     expect(gate).toBeLessThan(ingest)
@@ -82,40 +82,30 @@ describe('eno-deploy.sh — static on disk before the swap, tags instead of purg
     expect(block).toMatch(/-lt 93600 \]; then[\s\S]*else[\s\S]*PURGE_ALL=1\nfi/)
   })
 
-  it('nginx itself says whether eno.forum still serves the copy, and not knowing counts as yes', () => {
-    const fn = deploy.match(/^forum_public\(\)\{.*\}$/m)?.[0]
-    expect(fn).toBeTruthy()
-    const answer = (conf: string, exit = 0) => {
-      const dir = mkdtempSync(join(tmpdir(), 'forum-public-'))
-      writeFileSync(join(dir, 'conf'), conf)
-      writeFileSync(join(dir, 'nginx'), `#!/bin/sh\ncat "${join(dir, 'conf')}"\nexit ${exit}\n`, { mode: 0o755 })
-      return spawnSync('bash', ['-c', `set -uo pipefail\n${fn}\nforum_public`], { env: { PATH: `${dir}:${process.env.PATH}` } as unknown as NodeJS.ProcessEnv }).status
-    }
-    const toContainer = '  proxy_pass http://127.0.0.1:3002;\n'
-    expect(answer(`server {\n  server_name eno.forum www.eno.forum;\n${toContainer}}\n`)).toBe(0)
-    expect(answer(`server {\n  server_name www.eno.forum eno.forum;\n${toContainer}}\n`), 'names in any order').toBe(0)
-    expect(answer(`server {\n  server_name *.eno.forum;\n${toContainer}}\n`), 'only the shops left').toBe(0)
-    expect(answer('server {\n  server_name eno.forum;\n  proxy_pass http://127.0.0.1:4321;\n}\n'), 'the marketing app holds the name').toBe(1)
-    expect(answer('# proxy_pass http://127.0.0.1:3002;\nserver {\n  server_name eno.vn;\n  proxy_pass http://127.0.0.1:3001;\n}\n'), 'a comment').toBe(1)
-    expect(answer('', 1), 'nginx -T failed').toBe(0)
-    expect(answer(`server {\n${toContainer}}\n`.repeat(20000)), 'a long config, no broken pipe').toBe(0)
+  it('builds, swaps, rolls back and purges the marketplace only — the services edition went on 2026-11-26 (owner)', () => {
+    // Comments may tell the history; the code may not name the services container, its image, its port or its zone.
+    const code = deploy.split('\n').filter((l) => !l.trim().startsWith('#')).join('\n')
+    // …except the one guard that REFUSES a deploy while nginx still routes to the retired container (commit gate, 2026-11-26).
+    // A here-string, never `nginx -T | … | grep -q` (SIGPIPE under pipefail reads a match as no match), and an unreadable nginx refuses.
+    const guard = /^NGINX_CONF=\$\(nginx -T 2>\/dev\/null\) \|\| \{ bad "[^"\n]*"; exit 1; \}\nif grep -q '127\\\.0\\\.0\\\.1:3002' <<<"\$\(sed 's\/#\.\*\/\/' <<<"\$NGINX_CONF"\)"; then\n  bad "[^"\n]*"; exit 1\nfi$/m
+    expect(code).toMatch(guard)
+    expect(code).not.toMatch(/nginx -T[^\n]*\| *grep -q '127/)
+    expect(code.replace(guard, '')).not.toMatch(/eno-forum|127\.0\.0\.1:3002|cc81e3ff|forum_public|BID_FO|NEWBID_FO|PREVBID_FO|hostcheck/)
+    expect(code).not.toMatch(/eno-build\.sh"? "?services|"\$SS" (ingest|prune|drop|status) services/)
+    expect(code).toMatch(/^if ! \/opt\/eno\/bin\/eno-build\.sh marketplace; then$/m)
+    expect(code).toMatch(/^\s*for z in 55e558b62f68a44f8177d7d98cb5369e; do$/m)
+    // A --rollback restores eno-vn alone: a leftover eno-forum:prev on the box can neither refuse it nor be restored by it.
+    const restore = deploy.slice(at('restore(){'), at('# ⛔ THE GATE COVERS ROLLBACK TOO.'))
+    expect(restore).toContain('docker tag eno-vn:prev eno-vn:local')
+    expect(restore).toContain('docker compose -f "$COMPOSE" up -d --force-recreate eno-vn ||')
   })
 
-  it('a retired eno.forum skips every public check of the copy, and only then', () => {
-    for (const line of [/^\s*hostcheck https:\/\/eno\.forum\/ {6}200$/m, /^\s*check https:\/\/www\.eno\.forum\/ {6}200$/m, /^\s*cookiecheck https:\/\/eno\.forum\/$/m, /^\s*cookiecheck https:\/\/www\.eno\.forum\/$/m]) {
-      const found = deploy.match(line)
-      expect(found, String(line)).not.toBeNull()
-      const before = deploy.slice(0, found!.index)
-      expect(before.lastIndexOf('if forum_public; then'), String(line)).toBeGreaterThan(before.lastIndexOf('\n  fi\n'))
-    }
-    expect(deploy).toMatch(/if forum_public; then hostcheck https:\/\/eno\.forum\/itinerary 200; fi/)
-    expect(deploy).toMatch(/if \[ "\$ed" = services \] && ! forum_public; then ok "\$host: retired[^\n]*; continue; fi/)
+  it('eno.forum is Reach: its routing is checked warn-only, and the licensing checks on eno.vn are never gated', () => {
     // eno.forum is eno Reach since 2026-11-19 (owner: "dont redirect eno.forum to eno.vn"): the apex answers with Reach's sign-in,
     // www goes to the apex. A mismatch only warns, because box nginx owns that routing and it is no reason to roll back eno.vn.
     expect(deploy).toMatch(/"307 https:\/\/eno\.forum\/signin"\*\|"200 "\*\) ok "https:\/\/eno\.forum\/privacy is answered by Reach"/)
     expect(deploy).toMatch(/\[ "\$got" = "301 https:\/\/eno\.forum\/privacy" \] && ok[^\n]*\\\n\s*\|\| warn/)
     expect(deploy).not.toMatch(/should redirect to eno\.vn/)
-    // The licensing checks on eno.vn are never gated.
     expect(deploy).toMatch(/^\s*check https:\/\/eno\.vn\/visa {9}404$/m)
     expect(deploy).toMatch(/^\s*check https:\/\/eno\.vn\/itinerary {4}404$/m)
   })
@@ -123,8 +113,8 @@ describe('eno-deploy.sh — static on disk before the swap, tags instead of purg
   it('a tag purge the edge does not reflect falls back to purge_everything, and a failed fallback is fatal', () => {
     const block = deploy.slice(at('# ⛔ READ IT BACK, AND FALL BACK'), at('say "9. verify through the edge"'))
     // Exact, not a timing guess: the edge's `/` must embed the BUILD_ID the new containers report.
-    // A retired eno.forum has no edge page to read back, so only eno.vn answers for it then.
-    expect(block).toMatch(/if ! \{ edge_html_fresh eno\.vn "\$BID_VN" && \{ ! forum_public \|\| edge_html_fresh www\.eno\.forum "\$BID_FO"; \}; \}; then/)
+    // eno.vn alone: the services edition (www.eno.forum) is not built since 2026-11-26.
+    expect(block).toMatch(/if ! edge_html_fresh eno\.vn "\$BID_VN"; then/)
     expect(block).toMatch(/PURGE_ALL=1\n\s+if ! purge_edge; then[\s\S]*?exit 1/)
     const fresh = deploy.slice(at('edge_html_fresh(){'), at('# ⛔ BEFORE THE SWAP') > 0 ? at('# ⛔ BEFORE THE SWAP') : undefined)
     expect(fresh).toMatch(/grep -qF -- "\$bid" <<<"\$body"/)

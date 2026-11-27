@@ -1,0 +1,425 @@
+{
+  "slug": "dell-inspiron-vs-vostro",
+  "title": "Dell Inspiron or Vostro: which used laptop to buy?",
+  "description": "Inspiron vs Vostro compared from Dell's own spec sheets: Ethernet, lock slot, Windows 11 Pro, RAM and SSD upgrades, plus what to check on a used one.",
+  "h1": "Dell Inspiron vs Vostro: which used laptop fits your work?",
+  "eyebrow": "Buying a laptop",
+  "intro": "Pick a used Vostro if you want business extras like a wired Ethernet port, a lock slot and Windows 11 Pro. Pick an Inspiron for home use, because Dell's 15-inch 3520 versions share the same 16 GB memory ceiling. Inspiron is Dell's consumer line and Vostro was its small-business line. Since January 2025 Dell has sold new business laptops as Dell Pro, so a Vostro you buy today is almost always second-hand.",
+  "keyPoints": [
+    "Dell's spec sheets show the 15-inch **Vostro 3520** has a flip-down RJ45 Ethernet port and a wedge-shaped lock slot. The **Inspiron 15 3520** has neither.",
+    "Both 3520 models take **two DDR4 SODIMM sticks, 16 GB at most**, so neither can be upgraded further than the other.",
+    "Type-C with DisplayPort 1.4 is only on some configurations of either model. Dell says systems with 11th Gen Intel Core processors have no Type-C port at all.",
+    "The Vostro 3520 lists Windows 11 Pro and Ubuntu 20.04 among its supported systems. Many units are still sold with Windows 11 Home, so check what is actually installed.",
+    "According to Dell, existing Vostro customers keep their ProSupport cover until their contracts end. Look up the service tag before you pay to see what cover a used laptop still has."
+  ],
+  "sections": [
+    {
+      "id": "what-is-the-difference",
+      "title": "What is the difference between Inspiron and Vostro?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "**Inspiron is Dell's consumer laptop line and Vostro was its small-business line.** In the budget 15-inch range the two are often the same basic machine. The Vostro adds a few business features: wired networking, a lock slot and a wider choice of operating systems."
+        },
+        {
+          "type": "p",
+          "text": "Dell changed its naming in January 2025. According to [Dell's own brand page](https://www.dell.com/en-us/dfh/lp/learn-about-Outlet-dell-laptops), as of November 2026, the consumer line called simply \"Dell\" is \"formerly Inspiron, XPS\". \"Dell Pro\" is \"formerly Latitude, Vostro, OptiPlex\" and is aimed at people who need professional-grade products in an IT-managed environment. The same page says Inspiron continues under an Inspiron Laptops product line."
+        },
+        {
+          "type": "p",
+          "text": "Vostro has no such continuation. Dell's [Vostro update page](https://www.dell.com/en-us/lp/vostro-update) says the business and security features buyers liked on Vostro are now in **Dell Pro Essential**. Dell's US and Canadian shops mark the [Vostro 3520](https://www.dell.com/en-ca/shop/15/15-3520/spd/vostro-15-3520-laptop) as discontinued and suggest the Dell Pro 15 Essential instead. Dell also brought back the XPS name at CES 2026, [according to TechRadar](https://www.techradar.com/computing/dell-un-retires-its-iconic-xps-brand-at-ces-2026-were-getting-back-to-our-roots). That shows Dell's naming is still changing, but it does not affect Vostro."
+        },
+        {
+          "type": "table",
+          "caption": "Where each line sits in Dell's naming, from Dell's brand and Vostro update pages, checked 24 November 2026",
+          "headers": [
+            "Line",
+            "Aimed at",
+            "Status in Dell's own shop",
+            "Successor named by Dell"
+          ],
+          "rows": [
+            [
+              "Inspiron",
+              "Home, school and everyday work",
+              "Continues as the Inspiron Laptops product line",
+              "Part of the \"Dell\" consumer line"
+            ],
+            [
+              "Vostro",
+              "Small businesses",
+              "Vostro 3520 marked discontinued",
+              "Dell Pro Essential"
+            ],
+            [
+              "Latitude",
+              "Managed business fleets",
+              "Continues as Latitude Laptops",
+              "Part of \"Dell Pro\""
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "how-the-3520-models-compare",
+      "title": "How do the Inspiron 15 3520 and Vostro 15 3520 compare?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "**On Dell's spec sheets, the Inspiron 15 3520 and the Vostro 3520 differ in only a few places, and those places are the business features.** The processors, memory, display port and card reader are the same. The Vostro adds Ethernet and a lock slot. You will see this pair often on the used market, so it is the fairest comparison."
+        },
+        {
+          "type": "table",
+          "caption": "Inspiron 15 3520 vs Vostro 3520, from Dell's Setup and Specifications pages, ports checked 25 November 2026",
+          "headers": [
+            "Feature",
+            "Inspiron 15 3520",
+            "Vostro 3520"
+          ],
+          "rows": [
+            [
+              "Wired Ethernet (RJ45)",
+              "Not listed",
+              "One flip-down RJ45 port"
+            ],
+            [
+              "Security-cable slot",
+              "Not available",
+              "One wedge-shaped lock slot"
+            ],
+            [
+              "USB-A",
+              "Two USB 3.2 Gen 1 (one on Type-C configurations) plus one USB 2.0",
+              "Two USB 3.2 Gen 1 (one on Type-C configurations) plus one USB 2.0"
+            ],
+            [
+              "USB Type-C with DisplayPort 1.4",
+              "Type-C configurations only",
+              "Type-C configurations only"
+            ],
+            [
+              "HDMI",
+              "HDMI 1.4, up to 1920 x 1080 at 60 Hz",
+              "HDMI 1.4, up to 1920 x 1080 at 60 Hz"
+            ],
+            [
+              "Memory",
+              "Two DDR4 SODIMM slots, 16 GB maximum",
+              "Two DDR4 SODIMM slots, 16 GB maximum"
+            ],
+            [
+              "Card reader and audio",
+              "SD card slot, headset jack",
+              "SD card slot, headset jack"
+            ],
+            [
+              "Charger",
+              "65 W, 4.5 mm barrel",
+              "65 W, 4.5 mm barrel"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Notebookcheck's [Inspiron 15 3520 page](https://www.notebookcheck.net/Dell-Inspiron-15-3520.729934.0.html) covers an i5-1235U unit with 8 GB of DDR4-2666, a 15.6-inch 1920 x 1080 120 Hz display, a 41 Wh battery and Windows 11 Home. That page lists the Vostro 3520 with the same i5-1235U among devices with the same specifications. Notebookcheck's [Vostro 3520 i3-1215U page](https://www.notebookcheck.net/Dell-Vostro-3520-i3-1215U.820164.0.html) shows the entry-level i3 unit with the same memory, display, battery and Windows 11 Home, and names the i3-1215U Inspiron 15 3520 as its same-specification twin. For the same price and processor, expect the same performance."
+        }
+      ]
+    },
+    {
+      "id": "ports-and-business-features",
+      "title": "Which ports and business features does the Vostro add?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "**The Vostro 3520 adds a wired Ethernet port and a lock slot. The Inspiron 15 3520 has neither.** Everything else on the sides of the two laptops is the same, according to Dell's external-port tables for the [Vostro](https://www.dell.com/support/manuals/en-us/vostro-15-3520-laptop/vostro_3520_ss/external-ports?guid=guid-4c4cc1ba-66a4-45f0-8dfc-6013a624ddc0&lang=en-us) and the [Inspiron](https://www.dell.com/support/manuals/en-us/inspiron-15-3520-laptop/inspiron_3520_ss/external-ports-and-slots?guid=guid-b8f739cc-a41e-4ac9-b3f8-ff6d9c6d8c19&lang=en-us)."
+        },
+        {
+          "type": "h3",
+          "text": "Does the Ethernet port matter for online teaching or calls?"
+        },
+        {
+          "type": "p",
+          "text": "The Ethernet port matters if your router is within cable reach. A cable avoids Wi-Fi drop-outs in a crowded apartment block. With an Inspiron you can still plug in a USB Ethernet adapter, but it takes up one of the USB-A ports: one of three on a non-Type-C configuration, or one of only two on a Type-C configuration."
+        },
+        {
+          "type": "h3",
+          "text": "Can I connect two screens?"
+        },
+        {
+          "type": "p",
+          "text": "You can connect two screens only on a Type-C configuration. That configuration has HDMI 1.4 plus a Type-C port with DisplayPort 1.4. Non-Type-C units have HDMI only, limited to 1920 x 1080 at 60 Hz. Dell says systems with 11th Gen Intel Core (Tiger Lake) processors do not offer Type-C, so a used 11th Gen unit will have HDMI only."
+        },
+        {
+          "type": "h3",
+          "text": "Which operating systems does the Vostro support?"
+        },
+        {
+          "type": "p",
+          "text": "Dell's [Vostro 3520 operating-system page](https://www.dell.com/support/manuals/en-us/vostro-15-3520-laptop/vostro_3520_ss/operating-system?guid=guid-7b81d002-0a69-4d28-9c38-bbcdf7051010&lang=en-us) lists Windows 11 Pro, Windows 11 Home, Windows 11 Pro National Academic and Ubuntu 20.04 LTS, all 64-bit. Windows 11 Pro is a configuration option, not a guarantee. Open Settings and check the Windows edition before you agree a price."
+        }
+      ]
+    },
+    {
+      "id": "upgrades",
+      "title": "Can you upgrade the RAM and SSD?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "**Yes. Both 3520 models have two DDR4 SODIMM slots that take up to 16 GB, and you can swap the SSD.** Dell's memory tables for the [Inspiron](https://www.dell.com/support/manuals/en-us/inspiron-15-3520-laptop/inspiron_3520_ss/memory?guid=guid-e9d2ea83-38a4-431d-803c-96d63c1dbc34&lang=en-us) and the [Vostro](https://www.dell.com/support/manuals/en-us/vostro-15-3520-laptop/vostro_3520_ss/memory?guid=guid-e9d2ea83-38a4-431d-803c-96d63c1dbc34&lang=en-us) are identical. Memory runs at 2666 MT/s on non-Type-C systems and 3200 MT/s on Type-C systems, with a minimum of 4 GB and a maximum of 16 GB."
+        },
+        {
+          "type": "p",
+          "text": "Many entry units ship with one stick. A single 8 GB module is a common setup. Adding a matching second 8 GB stick gives you 16 GB in dual channel, which Dell lists as a supported configuration. The 16 GB ceiling is the real limit for either model, so if your work needs more memory, look at a different laptop."
+        },
+        {
+          "type": "h3",
+          "text": "What storage does the Vostro take?"
+        },
+        {
+          "type": "p",
+          "text": "According to Dell's [Vostro 3520 storage table](https://www.dell.com/support/manuals/en-us/vostro-15-3520-laptop/vostro_3520_ss/storage?guid=guid-df903cc2-226d-400b-9a83-1fcf31c562c2&lang=en-us), the laptop holds one drive. That drive is either an M.2 NVMe SSD (2230 up to 1 TB, 2280 up to 2 TB) or a 2.5-inch SATA hard drive up to 2 TB. The hard drive is not supported on units with a 4-cell battery. Dell's [internal slots page](https://www.dell.com/support/manuals/en-us/vostro-15-3520-laptop/vostro_3520_ss/internal-slots?guid=guid-647a9bd6-0be5-4b27-9df1-31e3c269abed&lang=en-us) lists one M.2 slot for the SSD and a separate M.2 2230 slot for the Wi-Fi card."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Hard drive units are the slow ones",
+          "text": "A used 3520 that boots from a 5400 rpm hard drive will feel much slower than the same model with an NVMe SSD. Check the drive type in Task Manager before you buy. If it is a hard drive, budget for an M.2 SSD, which goes in the M.2 slot."
+        }
+      ]
+    },
+    {
+      "id": "which-for-your-work",
+      "title": "Which one fits your work?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "**The Vostro suits work on a wired desk setup or in a shared room, where the lock slot and Ethernet earn their place. The Inspiron suits home, study and lesson planning, where those extras go unused.** For the same processor, memory and storage, the two perform the same, so let the extras and the price decide."
+        },
+        {
+          "type": "table",
+          "caption": "Matching the 3520 pair to common jobs, based on Dell's port and OS tables",
+          "headers": [
+            "Your work",
+            "Better pick",
+            "Why"
+          ],
+          "rows": [
+            [
+              "Online lessons or video calls from home",
+              "Vostro",
+              "Built-in Ethernet for a wired connection to the router"
+            ],
+            [
+              "Laptop left in a staffroom, office or co-working space",
+              "Vostro",
+              "Wedge lock slot for a security cable"
+            ],
+            [
+              "Office work that needs Windows Pro features",
+              "Vostro, if Pro is installed",
+              "Windows 11 Pro is a supported option; check the installed edition"
+            ],
+            [
+              "Lesson planning, browsing, streaming",
+              "Either; take the cheaper",
+              "Same memory, display port and card reader"
+            ],
+            [
+              "Two external screens",
+              "Either, Type-C configuration only",
+              "HDMI plus Type-C with DisplayPort 1.4"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "If neither model's 16 GB ceiling or HDMI 1.4 suits you, Dell names the Dell Pro 15 Essential as the closest current business model. Dell's shop lists it with Windows 11 Pro, a numeric keypad and a chassis that passes MIL-STD testing. Used laptops of both lines are listed under [Electronics on eno.vn](/c/electronics)."
+        }
+      ]
+    },
+    {
+      "id": "checking-a-used-one",
+      "title": "How to check a used Inspiron or Vostro before you buy",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "**Start with the service tag. It tells you the exact model and original configuration, and it lets you check what support is left.** Dell says on its [Vostro update page](https://www.dell.com/en-us/lp/vostro-update) that existing Vostro customers keep their ProSupport entitlements through the end of their contracts. Dell also says there is no impact on Vostro warranty and service. Whether that cover passes to you as a second owner is a question for Dell support."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Read the service tag",
+              "text": "Find the service tag on the label under the laptop. Enter it on Dell's support site to confirm the model, the processor generation and any remaining warranty."
+            },
+            {
+              "title": "Count the ports",
+              "text": "A genuine Vostro 3520 has a flip-down RJ45 port and a wedge lock slot. If the seller calls it a Vostro and both are missing, ask why."
+            },
+            {
+              "title": "Check for Type-C",
+              "text": "If you need a second screen, look for the Type-C port. An 11th Gen Intel unit will not have one."
+            },
+            {
+              "title": "Check memory and drive",
+              "text": "In Task Manager, check how much memory is installed and whether one or both slots are used. Check whether the drive is an SSD or a hard drive."
+            },
+            {
+              "title": "Check the Windows edition",
+              "text": "In Settings, check whether the laptop runs Windows 11 Home or Pro, and that it is activated."
+            }
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Leaving Vietnam and selling your own laptop? The [selling-up guide](/selling-up-before-you-leave-vietnam) covers how to list it."
+        }
+      ]
+    },
+    {
+      "id": "what-this-guide-does-not-cover",
+      "title": "What this guide does not cover",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Used prices in Ho Chi Minh City. They depend on processor, memory, storage and condition, and no source settled a fair range today. Compare current listings in [Electronics on eno.vn](/c/electronics).",
+            "Other Inspiron or Vostro generations. Ports and memory limits change by model, so check the Setup and Specifications page for the exact model on Dell's support site.",
+            "Whether Dell's ProSupport or warranty passes to a second owner. Ask Dell support with the service tag."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Is Dell Vostro better than Inspiron?",
+      "a": "The Dell Vostro is not faster than the Inspiron at the same specification. Dell's spec sheets for the Vostro 3520 and Inspiron 15 3520 list the same memory, display output and card reader. The Vostro is better for business use because it adds a flip-down Ethernet port, a wedge lock slot and Windows 11 Pro as a supported option. For home use, the cheaper of the two is usually the better buy."
+    },
+    {
+      "q": "Is Dell Vostro discontinued?",
+      "a": "Yes, the Dell Vostro line has been replaced. Since January 2025 Dell's business laptops have been sold as Dell Pro. Dell's own Vostro update page says Vostro's business and security features are now in Dell Pro Essential, and Dell's shop marks the Vostro 3520 as discontinued. Dell says existing Vostro customers keep their ProSupport entitlements until their contracts end."
+    },
+    {
+      "q": "Does the Dell Inspiron 15 3520 have an Ethernet port?",
+      "a": "No. Dell's external-ports table for the Inspiron 15 3520 lists no RJ45 Ethernet port, and its security-cable slot is listed as not available. The Vostro 3520 has a flip-down RJ45 port and a wedge-shaped lock slot. An Inspiron 15 3520 owner who needs a wired connection can use a USB Ethernet adapter, which takes one of three USB-A ports on a non-Type-C configuration, or one of two on a Type-C configuration."
+    },
+    {
+      "q": "How much RAM can a Dell Vostro 3520 take?",
+      "a": "The Dell Vostro 3520 takes up to 16 GB of DDR4 memory in two SODIMM slots, according to Dell's own memory table. Speed is 2666 MT/s on non-Type-C systems and 3200 MT/s on Type-C systems. The Inspiron 15 3520 has the same two slots and the same 16 GB maximum, so neither model can be upgraded beyond the other."
+    },
+    {
+      "q": "Can you add an SSD to a Dell Vostro 3520?",
+      "a": "Yes. The Dell Vostro 3520 has one M.2 slot for a 2230 or 2280 NVMe solid-state drive. Dell lists up to 2 TB for a 2280 drive. The Vostro 3520 holds only one drive, either the M.2 SSD or a 2.5-inch hard drive, so a unit that came with a hard drive is normally moved to an SSD rather than given a second drive."
+    },
+    {
+      "q": "Does the Dell Vostro come with Windows Pro?",
+      "a": "Not always. Dell's operating-system page for the Vostro 3520 lists Windows 11 Pro, Windows 11 Home, Windows 11 Pro National Academic and Ubuntu 20.04 LTS as supported. Windows 11 Pro was one option among several, and spec listings show entry-level Vostro 3520 units with Windows 11 Home. Check the installed edition in Settings before buying a used Vostro."
+    },
+    {
+      "q": "What is the difference between Dell Inspiron, Vostro and Latitude?",
+      "a": "Inspiron is Dell's consumer line for home and school. Vostro was the small-business line, and Latitude is the line for managed business fleets. Since January 2025, Dell's naming puts Inspiron under the consumer \"Dell\" line and Vostro and Latitude under \"Dell Pro\". Dell's brand page says Inspiron and Latitude continue as product lines, while Vostro's features moved into Dell Pro Essential."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Dell laptops: new PC categories (Dell, Dell Pro, Dell Pro Max)",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/en-us/dfh/lp/learn-about-Outlet-dell-laptops"
+    },
+    {
+      "title": "Vostro update",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/en-us/lp/vostro-update"
+    },
+    {
+      "title": "Vostro 3520 Setup and Specifications: External ports",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/support/manuals/en-us/vostro-15-3520-laptop/vostro_3520_ss/external-ports?guid=guid-4c4cc1ba-66a4-45f0-8dfc-6013a624ddc0&lang=en-us"
+    },
+    {
+      "title": "Inspiron 15 3520 Setup and Specifications: External ports and slots",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/support/manuals/en-us/inspiron-15-3520-laptop/inspiron_3520_ss/external-ports-and-slots?guid=guid-b8f739cc-a41e-4ac9-b3f8-ff6d9c6d8c19&lang=en-us"
+    },
+    {
+      "title": "Inspiron 15 3520 Setup and Specifications: Memory",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/support/manuals/en-us/inspiron-15-3520-laptop/inspiron_3520_ss/memory?guid=guid-e9d2ea83-38a4-431d-803c-96d63c1dbc34&lang=en-us"
+    },
+    {
+      "title": "Vostro 3520 Setup and Specifications: Memory",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/support/manuals/en-us/vostro-15-3520-laptop/vostro_3520_ss/memory?guid=guid-e9d2ea83-38a4-431d-803c-96d63c1dbc34&lang=en-us"
+    },
+    {
+      "title": "Vostro 3520 Setup and Specifications: Storage",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/support/manuals/en-us/vostro-15-3520-laptop/vostro_3520_ss/storage?guid=guid-df903cc2-226d-400b-9a83-1fcf31c562c2&lang=en-us"
+    },
+    {
+      "title": "Vostro 3520 Setup and Specifications: Internal slots",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/support/manuals/en-us/vostro-15-3520-laptop/vostro_3520_ss/internal-slots?guid=guid-647a9bd6-0be5-4b27-9df1-31e3c269abed&lang=en-us"
+    },
+    {
+      "title": "Vostro 3520 Setup and Specifications: Operating system",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/support/manuals/en-us/vostro-15-3520-laptop/vostro_3520_ss/operating-system?guid=guid-7b81d002-0a69-4d28-9c38-bbcdf7051010&lang=en-us"
+    },
+    {
+      "title": "Vostro 3520 Laptop",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/en-ca/shop/15/15-3520/spd/vostro-15-3520-laptop"
+    },
+    {
+      "title": "Dell Inspiron 15 3520 (i5-1235U)",
+      "publisher": "Notebookcheck",
+      "url": "https://www.notebookcheck.net/Dell-Inspiron-15-3520.729934.0.html"
+    },
+    {
+      "title": "Dell Vostro 3520, i3-1215U",
+      "publisher": "Notebookcheck",
+      "url": "https://www.notebookcheck.net/Dell-Vostro-3520-i3-1215U.820164.0.html"
+    },
+    {
+      "title": "Dell un-retires its iconic XPS brand at CES 2026",
+      "publisher": "TechRadar",
+      "url": "https://www.techradar.com/computing/dell-un-retires-its-iconic-xps-brand-at-ces-2026-were-getting-back-to-our-roots"
+    }
+  ],
+  "related": [
+    "private-tutoring-and-online-teaching-in-vietnam",
+    "leaving-vietnam-checklist-for-teachers",
+    "your-first-weeks-in-ho-chi-minh-city"
+  ],
+  "lastChecked": "2026-11-25",
+  "images": {
+    "hero": {
+      "id": "b5cfbe93a99a62f5a9ed85539076a8d758f521c38d533087aa076b8d0de59c2f",
+      "w": 1672,
+      "h": 941,
+      "alt": "Two illustrated laptops sit side by side, with home accessories on the left and office accessories on the right.",
+      "caption": "Choosing a used Inspiron or Vostro for home or work."
+    },
+    "figures": [
+      {
+        "id": "45542694b871ccdeb87c493b2ec41bf340104ae84a5ef4a8ed4d510153bff7d2",
+        "w": 1448,
+        "h": 1086,
+        "after": "ports-and-business-features",
+        "alt": "An illustrated laptop has an Ethernet socket beside a network cable and an attached security cable lock.",
+        "caption": "Conceptual view of wired Ethernet and a laptop security lock."
+      },
+      {
+        "id": "256cb47c1b588103647134e5f92ceffe961c5f42a2aac4122efd100da19c70ae",
+        "w": 1448,
+        "h": 1086,
+        "after": "checking-a-used-one",
+        "alt": "A magnifying glass enlarges a laptop hinge, surrounded by battery, USB connector and keyboard symbols.",
+        "caption": "Checking a used laptop before buying."
+      }
+    ]
+  }
+}

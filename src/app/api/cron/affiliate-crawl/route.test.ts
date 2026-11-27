@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+// The new-Apple backstop (src/lib/new-apple-night.ts) reads its own rows; this suite's fake db would hand it the used fixtures.
+vi.mock('@/lib/new-apple-night', () => ({ sellStaleNewApple: async () => ({ staleNewApple: 0 }) }))
 
 // /api/cron/affiliate-crawl — the AccessTrade CRAWL campaigns (Hoàng Hà, ShopDunk; chat only) through the shared nightly
 // body (src/lib/affiliate-night.ts). The crawl itself is faked; the body, the allow-list and the SQL builders are real.

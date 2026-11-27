@@ -3,7 +3,7 @@
 # eno · post-deploy cache warm-up (SEO wave B, H4). Called by eno-deploy.sh step 11.
 #
 #   bash eno-warmup.sh --sha=<sha> --since=<vn container StartedAt>     · what the deploy runs
-#   bash eno-warmup.sh --vn=127.0.0.1:3250 --forum=127.0.0.1:3251 --dir=/tmp/w   · against a local build
+#   bash eno-warmup.sh --vn=127.0.0.1:3250 --forum=127.0.0.1:3251 --dir=/tmp/w   · against a local build (both editions)
 #   … --dry-run      · the rent index, the sitemaps and /c/rentals only; the pages are listed, not fetched
 #   … --stop-file=<path>   · stop sending when it exists (default /opt/eno/deploy-incomplete; empty = never)
 #
@@ -35,12 +35,15 @@
 # forum got 2 of its pages other than listings, and neither edition's server was quiet for 14 minutes. A
 # listing's first visitor now pays its cold render: 0.33 s p50, 0.45 s p95, 1.35 s max on 2026-11-03.
 # ⚠️ ABOUT 930 PAGE REQUESTS AT CONCURRENCY 4: 321 eno.vn + 142 eno.forum paths from pages.xml (2026-11-03)
-# × 2 languages, about 1.5 minutes.
+# × 2 languages, about 1.5 minutes. (eno.vn's ~640 alone since 2026-11-26 — see FORUM below.)
 # ─────────────────────────────────────────────────────────────────────────────
 set -uo pipefail
 
 SHA=manual; SINCE=""; DIR=/opt/eno/warmup; DRY=0; STOP=/opt/eno/deploy-incomplete
-VN=127.0.0.1:3001; FORUM=127.0.0.1:3002
+# ⛔ FORUM IS EMPTY BY DEFAULT since 2026-11-26 (owner): the deploy builds the marketplace only — eno.forum is the Reach app
+# and no services container runs on :3002 — so a deploy warms eno.vn alone. `--forum=<host:port>` still warms a services
+# build someone runs by hand (a local preview).
+VN=127.0.0.1:3001; FORUM=
 VN_HOST=eno.vn; FORUM_HOST=www.eno.forum
 CONC=4; PAGE_MAX=30; RENT_MAX=180; RETRIES=3; BUDGET=840
 # 65 s: the loader answers `known: false` for 60 s after a failed read (FAILURE_HOLD_MS in

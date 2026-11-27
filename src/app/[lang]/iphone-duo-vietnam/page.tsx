@@ -51,7 +51,7 @@ const CFG: ModelPageConfig = {
     },
     {
       q: 'How much is the iPhone Duo in Vietnam?',
-      a: `Apple Vietnam prices run from ${formatMoneyFull(APPLE_VN_FROM_PRICE[IPHONE_DUO_MODEL], '₫')} for 256GB to ${formatMoneyFull(APPLE_VN_DUO_2TB_PRICE, '₫')} for 2TB — the first iPhone sold officially here above 100 million đồng. Once second-hand units are listed here, the table above shows the cheapest per storage tier, with the date it was checked.`,
+      a: `Apple Vietnam prices run from ${formatMoneyFull(APPLE_VN_FROM_PRICE[IPHONE_DUO_MODEL], '₫')} for 256GB to ${formatMoneyFull(APPLE_VN_DUO_2TB_PRICE, '₫')} for 2TB — the first iPhone sold officially here above 100 million đồng. When shops list new or second-hand units here, the tables above show the cheapest per storage tier, with the date they were checked.`,
     },
     {
       q: 'Is it called the iPhone 18 Fold?',

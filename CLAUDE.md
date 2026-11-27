@@ -107,6 +107,13 @@ seat to claim, so `$ENO_SESSION` is meaningless — ignore it if you see it set.
 
 ## ⛔ EVERY FIX SHIPS TO BOTH SITES (owner, 2026-08-02)
 
+⛔ **SINCE 2026-11-26 ONLY THE MARKETPLACE EDITION IS BUILT AND DEPLOYED** (owner: _"make it clean distinction eno.vn
+marketplace eno.forum reach app"_). eno.forum is the Reach app (separate repo `~/eno-reach-next.noindex`); `eno-deploy.sh`
+builds, swaps, verifies and purges `eno-vn` only (eno.vn's zone only), and `eno-forum-app` is not part of it — the
+crons it answered (storage-tombstones, visa-retention) run on eno.vn :3001. The `IS_SERVICES` code and `.svc.`
+files remain in the tree, but no services image is built — so the "both sites" rule below, the table and the per-site config
+are history, not a live second deployment.
+
 **Owner's words: _"make sure all fixes reach forum too unless i specify visa itinerary fix"_.**
 
 The DEFAULT is both. eno.vn and eno.forum are one codebase deployed twice, so a change under
@@ -184,6 +191,8 @@ to get licenses and register company the other one eno.forum to serve the evisa 
 itinerary services since eno.vn cant legally have them … we cant have paypal checkout
 in eno.vn only in eno.forum so visa and itinerary related ui should be visible only in
 forum one"*.
+
+⛔ Since 2026-11-26 only `eno-vn:local` is built and deployed; eno.forum is the Reach app (see "EVERY FIX SHIPS TO BOTH SITES").
 
 **The architecture is ONE SHARED CODEBASE, not two.** The repo root is deployed **twice** —
 as two containers on the VN box (`eno-vn:local` on :3001, `eno-forum:local` on :3002; this

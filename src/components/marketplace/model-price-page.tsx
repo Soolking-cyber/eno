@@ -10,6 +10,8 @@ import { MODEL_PAGE_SIZE, loadModelPage, modelPageMetadata, modelPagePath, model
 import { LANGUAGES } from '@/lib/languages'
 import { LangPilotLink } from './lang-pilot-link'
 import { compactVndRange, formatInteger } from '@/lib/vnd'
+import { modelColours } from '@/lib/model-colours'
+import { joinNames } from '@/lib/join-names'
 
 /**
  * A model's price page — /price/<slug> in English, /gia/<slug> in Vietnamese (src/lib/model-pages.ts has the rules).
@@ -44,7 +46,7 @@ export async function ModelPricePage({ slug, lang }: { slug: string; lang: Model
         <div className="mt-6">
           <SellerListings listings={listings} serverScope={{ params, total, pageSize: MODEL_PAGE_SIZE }} initialSort="price-low" look="goods" quietCount={band ? 'always' : undefined} />
         </div>
-        {total > 0 && <ModelAbout model={entry.name} total={total} band={band} lang={lang} />}
+        {total > 0 && <ModelAbout model={entry.name} slug={entry.slug} total={total} band={band} lang={lang} />}
         {ld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld).replace(/</g, '\\u003c') }} />}
         {/* The other-language twin as a LINK (Seobility crawl 3: 25 /gia pages reached only through the sitemap — hreflang is not
             a link). Both addresses are pinned to their language (lang-pinned.ts), so each direction is right, unlike a family's
@@ -66,7 +68,8 @@ export async function ModelPricePage({ slug, lang }: { slug: string; lang: Model
  * band the line under the H1 already shows — then how to read a price here. Each paragraph is 20+ words in both languages.
  * The sentences are literals so the string harvest and the curated Vietnamese see them.
  */
-function ModelAbout({ model, total, band, lang }: { model: string; total: number; band: { p25: number; p75: number; n: number } | null; lang: ModelPageLang }) {
+function ModelAbout({ model, slug, total, band, lang }: { model: string; slug: string; total: number; band: { p25: number; p75: number; n: number } | null; lang: ModelPageLang }) {
+  const colours = modelColours(slug)
   const values = { model, site: SITE_NAME, n: formatInteger(total, lang), bn: band ? formatInteger(band.n, lang) : '', range: band ? compactVndRange(band.p25, band.p75, lang) : '' }
   return (
     <section aria-labelledby="model-about" className="mt-10 max-w-2xl space-y-2">
@@ -86,12 +89,20 @@ function ModelAbout({ model, total, band, lang }: { model: string; total: number
         />
       </p>
       {/* The third (owner, 2026-11-26: "Add a 3rd paragraph" — the short footer took the counted registration line, grid-about.tsx).
-          ⚠️ Any goods shelf (modelShelfOk: fashion and furniture too), so nothing device-only — no serial numbers. */}
+          ⚠️ Any goods shelf (modelShelfOk: fashion and furniture too), so nothing device-only — no serial numbers — except where
+          the maker's colours are known (model-colours.ts, owner same day: "Official colours line"): the model's own words. */}
       <p className="text-sm text-body">
-        <Bilingual
-          en="When you meet, check that the item matches its photos and description, and test what matters to you before you pay. Any listing that breaks the rules can be reported from its own page."
-          vi="Khi gặp, hãy kiểm tra món đồ có đúng như ảnh và mô tả không, và thử những gì bạn cần trước khi trả tiền. Tin nào vi phạm quy định đều có thể được báo cáo ngay trên trang của tin."
-        />
+        {colours
+          ? <Bilingual
+              en="When you meet, compare the colour: the {model} was sold in {colours}, so any other colour usually means its back or frame was replaced. Test what matters to you before you pay."
+              vi="Khi gặp, hãy đối chiếu màu máy: {model} được bán với các màu {colours}, nên màu khác thường có nghĩa là mặt lưng hoặc khung máy đã được thay. Hãy thử những gì bạn cần trước khi trả tiền."
+              values={{ model, colours: joinNames(colours.en, 'en') }}
+              valuesVi={{ model, colours: joinNames(colours.vi, 'vi') }}
+            />
+          : <Bilingual
+              en="When you meet, check that the item matches its photos and description, and test what matters to you before you pay. Any listing that breaks the rules can be reported from its own page."
+              vi="Khi gặp, hãy kiểm tra món đồ có đúng như ảnh và mô tả không, và thử những gì bạn cần trước khi trả tiền. Tin nào vi phạm quy định đều có thể được báo cáo ngay trên trang của tin."
+            />}
       </p>
     </section>
   )

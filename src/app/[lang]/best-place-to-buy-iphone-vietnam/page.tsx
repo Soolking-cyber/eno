@@ -4,6 +4,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { guideDates } from '@/lib/expat-guides'
 import { phoneGuideAlternates, phoneGuidesIn } from '@/lib/phone-guides'
 import { HereLink, OfficialLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { NewIphoneBlock, newIphoneOffers } from '../iphone-18-vietnam/new-offers-block'
 
 /**
  * WHERE TO BUY AN iPHONE IN VIETNAM — the English half of the pair; the Vietnamese half is
@@ -16,6 +17,15 @@ import { HereLink, OfficialLink, P, SeoArticle, Ul, type ArticleContent } from '
  * retailers and takes affiliate revenue from some of them, so a ranking here would be an ad wearing
  * an editorial byline. Naming what each KIND of shop is good and bad at is the honest version, and
  * it is also the version that survives a retailer changing its prices next month.
+ * ⚠️ THE "iPhone 18 on eno.vn" BLOCK UNDER THE INTRO (2026-11-26, new-offers-block.tsx) DOES NOT BREAK THIS: it is not part of
+ * the article (no section, not in "On this page"), it ranks nothing — the lowest listed price per model and the shop listing
+ * it — and it says in the same breath that the site may earn a commission. The advice below is unchanged by it.
+ */
+/**
+ * ⚠️ ONE HOUR, SINCE 2026-11-26, for the "iPhone 18 on eno.vn" block under the intro (new-offers-block.tsx) — the cheapest new
+ * Pro, Pro Max and Duo the shops list here. The article itself is static text; the block reads live listings, so without a
+ * `revalidate` a page built before the import would never show it. With none listed (or a failed read) the block is absent and
+ * the page is the article as it always was.
  */
 export const revalidate = 3600
 
@@ -200,6 +210,8 @@ export const metadata: Metadata = withShare({
   alternates: phoneGuideAlternates(SLUG),
 }, { type: 'article' })
 
-export default function BestPlaceToBuyIPhoneVietnamPage() {
-  return <SeoArticle content={CONTENT} />
+export default async function BestPlaceToBuyIPhoneVietnamPage() {
+  // `ledeRow` only WITH rows: an empty one would still move the phone's "On this page" row up under the lede (SeoArticle).
+  const offers = await newIphoneOffers()
+  return <SeoArticle content={offers.length ? { ...CONTENT, ledeRow: <NewIphoneBlock lang="en" rows={offers} /> } : CONTENT} />
 }

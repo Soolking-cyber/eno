@@ -1,0 +1,452 @@
+{
+  "slug": "how-to-find-an-apartment-in-ho-chi-minh-city",
+  "title": "Chung cư rentals in Ho Chi Minh City: find an apartment",
+  "description": "Median chung cư asking rents by HCMC district on 26 November 2026, how to filter by area and price, Binh Thanh and Hoc Mon, old blocks and the lease.",
+  "h1": "Chung cư rentals in Ho Chi Minh City: prices by area and how to find a flat that is still available",
+  "eyebrow": "Renting in Saigon",
+  "intro": "To rent a chung cư in Ho Chi Minh City, filter listings by area and price, compare with the eno.vn Rent Index of 26 November 2026, then message the landlord to confirm the flat is still available before viewing. Rents vary widely by area: Binh Tan, Hoc Mon, Nha Be and Binh Chanh were the cheapest that day, District 2 and District 1 the dearest. A lease must be in writing but need not be notarised.",
+  "keyPoints": [
+    "On 26 November 2026 the eno.vn Rent Index put the median asking rent for a one-bedroom apartment at {{vnd:6600000}} a month in Go Vap, {{vnd:9000000}} in Binh Thanh and {{vnd:23000000}} in District 1.",
+    "The Rent Index measures **asking rents** on homes listed on eno.vn, not signed leases, so treat its medians as a starting point for negotiating.",
+    "On 26 November 2026 Hoc Mon had 88 apartment listings in the index, only 1 of them a one-bedroom; the rest were studios and duplex rooms, at a median of {{vnd:3400000}} a month.",
+    "Since 1 July 2025 the old Hoc Mon district has been four communes: Hoc Mon, Ba Diem, Xuan Thoi Son and Dong Thanh. Use the new commune name on your lease.",
+    "Under the Housing Law 2023 a residential lease must be in writing, but it does not have to be notarised unless both parties want it to be."
+  ],
+  "sections": [
+    {
+      "id": "how-much-does-a-chung-cu-cost-to-rent",
+      "title": "How much does it cost to rent a chung cư in Ho Chi Minh City?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "On 26 November 2026 the eno.vn Rent Index put median asking rents for apartments between {{vnd:3000000}} a month in Binh Tan and {{vnd:33500000}} in District 2. What you pay within an area depends mostly on size and number of bedrooms. A chung cư is an apartment building, and a căn hộ is a flat inside one. Both words appear in Vietnamese listings."
+        },
+        {
+          "type": "p",
+          "text": "The [eno.vn Rent Index](/hcmc-rent-index) is produced by eno.vn. It gives median asking rents for the homes listed on eno.vn, broken down by district and type of home. It is updated regularly, and its page names the sources behind each snapshot."
+        },
+        {
+          "type": "table",
+          "caption": "Median monthly asking rent for apartments, eno.vn Rent Index snapshot of 26 November 2026. A dash means fewer than 10 listings, too few for a median.",
+          "headers": [
+            "Area (old name)",
+            "All apartments",
+            "Studio",
+            "1 bedroom",
+            "2 bedrooms"
+          ],
+          "rows": [
+            [
+              "City-wide",
+              "{{vnd:4800000}}",
+              "{{vnd:4300000}}",
+              "{{vnd:9400000}}",
+              "{{vnd:23000000}}"
+            ],
+            [
+              "District 1",
+              "{{vnd:23000000}}",
+              "{{vnd:6500000}}",
+              "{{vnd:23000000}}",
+              "{{vnd:35000000}}"
+            ],
+            [
+              "District 2 (Thu Duc)",
+              "{{vnd:33500000}}",
+              "–",
+              "{{vnd:24900000}}",
+              "{{vnd:30000000}}"
+            ],
+            [
+              "District 3",
+              "{{vnd:8200000}}",
+              "{{vnd:6400000}}",
+              "{{vnd:10800000}}",
+              "–"
+            ],
+            [
+              "District 4",
+              "{{vnd:20100000}}",
+              "{{vnd:7200000}}",
+              "{{vnd:13900000}}",
+              "{{vnd:22800000}}"
+            ],
+            [
+              "District 7 (Phu My Hung)",
+              "{{vnd:14000000}}",
+              "{{vnd:5400000}}",
+              "{{vnd:15000000}}",
+              "{{vnd:16800000}}"
+            ],
+            [
+              "District 9 (Thu Duc)",
+              "{{vnd:14100000}}",
+              "–",
+              "–",
+              "{{vnd:14100000}}"
+            ],
+            [
+              "District 10",
+              "{{vnd:7300000}}",
+              "{{vnd:6500000}}",
+              "{{vnd:9000000}}",
+              "{{vnd:12900000}}"
+            ],
+            [
+              "Binh Thanh",
+              "{{vnd:6300000}}",
+              "{{vnd:5800000}}",
+              "{{vnd:9000000}}",
+              "{{vnd:11800000}}"
+            ],
+            [
+              "Phu Nhuan",
+              "{{vnd:5600000}}",
+              "{{vnd:5300000}}",
+              "{{vnd:8000000}}",
+              "{{vnd:10000000}}"
+            ],
+            [
+              "Tan Binh",
+              "{{vnd:6000000}}",
+              "{{vnd:5500000}}",
+              "{{vnd:7500000}}",
+              "{{vnd:10500000}}"
+            ],
+            [
+              "Go Vap",
+              "{{vnd:4900000}}",
+              "{{vnd:4800000}}",
+              "{{vnd:6600000}}",
+              "{{vnd:7800000}}"
+            ],
+            [
+              "Tan Phu",
+              "{{vnd:4000000}}",
+              "{{vnd:3900000}}",
+              "{{vnd:7000000}}",
+              "–"
+            ],
+            [
+              "District 12",
+              "{{vnd:4100000}}",
+              "{{vnd:4000000}}",
+              "{{vnd:5800000}}",
+              "–"
+            ],
+            [
+              "Binh Tan",
+              "{{vnd:3000000}}",
+              "{{vnd:3000000}}",
+              "–",
+              "–"
+            ],
+            [
+              "Binh Chanh",
+              "{{vnd:3900000}}",
+              "{{vnd:2700000}}",
+              "–",
+              "–"
+            ],
+            [
+              "Hoc Mon",
+              "{{vnd:3400000}}",
+              "{{vnd:3400000}}",
+              "–",
+              "–"
+            ],
+            [
+              "Nha Be",
+              "{{vnd:3600000}}",
+              "{{vnd:3000000}}",
+              "–",
+              "{{vnd:16700000}}"
+            ],
+            [
+              "Thu Duc City",
+              "{{vnd:20600000}}",
+              "{{vnd:4200000}}",
+              "{{vnd:24100000}}",
+              "{{vnd:28800000}}"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Why is the all-apartments figure sometimes higher than the two-bedroom figure?"
+        },
+        {
+          "type": "p",
+          "text": "The all-apartments column mixes every type listed, from studios to three bedrooms and up, so it leans towards whichever type is listed most in that area. On 26 November 2026, District 2 had many large flats listed, which pushed its overall median above its two-bedroom median. In Binh Tan and Hoc Mon the opposite happened, because studios made up almost every listing."
+        },
+        {
+          "type": "p",
+          "text": "The index page says its figures are **asking prices**, not signed leases. The 26 November 2026 snapshot counted listings with rents from {{vnd:1000000}} to {{vnd:500000000}} a month and trimmed nothing within that band. Floor areas of 5 to 2,000 m² and rents of {{vnd:10000}} to {{vnd:2000000}} per m² are used only for the per-m² figures. Studios and duplex rooms have had their own band since 21 October 2026, so one-bedroom figures from before that date cannot be compared with current ones. Listings under the old names District 2 and District 9 count both in their own rows and in Thu Duc City. For more detail by district, see [rent prices in Ho Chi Minh City by district](/guides/rent-prices)."
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Old district names and new addresses",
+          "text": "Since 1 July 2025 Ho Chi Minh City has officially had no districts, and official addresses use the new ward and commune names. Listings and the Rent Index still use old names like District 7 or Binh Thanh because that is how people search. Put the new ward or commune name on your lease. If you have not picked an area yet, [Ho Chi Minh City districts: a newcomer's guide](/guides/ho-chi-minh-city-districts) compares them."
+        }
+      ]
+    },
+    {
+      "id": "how-to-find-an-apartment",
+      "title": "How to find an apartment: filter by area and price, then check it is still available",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The quickest way is to choose an area, set a price range around the medians above, and message the landlord to confirm the flat is still available before you go to see it. The [Rentals](/c/rentals) category on eno.vn lists Ho Chi Minh City homes for rent, which you can narrow by area and sort by price."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Choose the area first",
+              "text": "On [Rentals](/c/rentals), pick the district or neighbourhood you want, ideally near work or your children's school. Choosing the area first means you compare prices against that area's own going rate, not the city's."
+            },
+            {
+              "title": "Set a price range from the Rent Index",
+              "text": "Use the median for the type of flat you need, from the table above, as your benchmark. A flat far below it is usually smaller, further out or quoted without the management fee. If a flat is well above it, ask what the extra money gets you."
+            },
+            {
+              "title": "Read the listing closely",
+              "text": "Note the floor area in m², the number of bedrooms, the ward or commune, and whether the price includes the management fee, electricity and water. In apartment buildings the management fee and motorbike parking are often charged separately, so ask for the actual amounts."
+            },
+            {
+              "title": "Message before you travel",
+              "text": "Ask the landlord, agent or partner in eno.vn chat whether the flat is still available before you go to see it. Listings from [GoPlus](/goplus), an official eno.vn partner, are answered by GoPlus itself in eno.vn chat. A linked listing's button opens the original posting on its source site."
+            },
+            {
+              "title": "View the flat and sign",
+              "text": "At the viewing, check the electrics, water pressure, air conditioning, lift and parking. Then go through the lease using the checklist below. For viewings, bills and the landlord's residence declaration, see [renting an apartment in Vietnam as a foreigner](/renting-an-apartment-vietnam-foreigner). For deposits and getting them back, see [rental deposits in Vietnam](/rental-deposit-vietnam)."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Ask before you go",
+          "text": "A well-priced flat in a popular area can be let before its listing comes down. Messaging first saves you a wasted trip, especially if you would be crossing the city from Hoc Mon or Thu Duc."
+        }
+      ]
+    },
+    {
+      "id": "binh-thanh-apartments-for-rent",
+      "title": "Apartments for rent in Binh Thanh: what do they cost?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "On 26 November 2026 the eno.vn Rent Index had 622 apartment listings in Binh Thanh, with medians of {{vnd:5800000}} a month for a studio, {{vnd:9000000}} for a one-bedroom and {{vnd:11800000}} for a two-bedroom. That puts Binh Thanh above Go Vap, Tan Binh and Phu Nhuan, but far below District 1, District 2 and District 4."
+        },
+        {
+          "type": "p",
+          "text": "Of those 622 listings, 449 were studios, 79 one-bedrooms and 63 two-bedrooms. Binh Thanh had enough listings in every main band for the index to publish a median, so the area's figures are among the more solid ones in the index."
+        },
+        {
+          "type": "h3",
+          "text": "Where can I find a cheap apartment in Binh Thanh?"
+        },
+        {
+          "type": "p",
+          "text": "In Binh Thanh, the cheapest apartments are studios. On 26 November 2026 their median of {{vnd:5800000}} a month was the lowest of any apartment type in the area. If that is still over budget, the same snapshot had lower studio medians next door: {{vnd:5300000}} in Phu Nhuan and {{vnd:4800000}} in Go Vap. When a Binh Thanh listing is far below the studio median, ask what the price leaves out, such as the management fee, parking or utilities."
+        }
+      ]
+    },
+    {
+      "id": "renting-an-apartment-in-hoc-mon",
+      "title": "Renting an apartment in Hoc Mon: prices and the new communes",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "On 26 November 2026 the eno.vn Rent Index had 88 apartment listings in Hoc Mon, at a median asking rent of {{vnd:3400000}} a month. That puts Hoc Mon among the cheapest areas in the table above. Only 1 listing was a one-bedroom and none had two or more bedrooms. The other 87 were studios and duplex rooms."
+        },
+        {
+          "type": "p",
+          "text": "Hoc Mon has too few one- and two-bedroom listings for the index to publish medians for them. If you need more space, compare nearby areas that have the data, such as District 12 or Go Vap."
+        },
+        {
+          "type": "h3",
+          "text": "Which commune is Hoc Mon in now?"
+        },
+        {
+          "type": "p",
+          "text": "Since 1 July 2025, under Resolution 1685/NQ-UBTVQH15, the former Hoc Mon district has been reorganised into four communes."
+        },
+        {
+          "type": "table",
+          "caption": "New communes formed from the former Hoc Mon district from 1 July 2025, according to Thư Viện Nhà Đất.",
+          "headers": [
+            "New commune",
+            "Made up of (old units)"
+          ],
+          "rows": [
+            [
+              "Hoc Mon",
+              "Hoc Mon town, Tan Hiep commune, Tan Xuan commune"
+            ],
+            [
+              "Ba Diem",
+              "Ba Diem, Xuan Thoi Thuong, Trung Chanh"
+            ],
+            [
+              "Dong Thanh",
+              "Dong Thanh, Thoi Tam Thon, Nhi Binh"
+            ],
+            [
+              "Xuan Thoi Son",
+              "Xuan Thoi Son, Tan Thoi Nhi, Xuan Thoi Dong"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "A listing that just says \"Hoc Mon\" could be in any of the four. Ask for the commune and street so you can work out the commute. If you would live in Hoc Mon and work in the centre, budget for daily travel. [Motorbike rental in Ho Chi Minh City](/motorbike-rental-ho-chi-minh-city) covers monthly bike hire."
+        }
+      ]
+    },
+    {
+      "id": "renting-an-old-chung-cu",
+      "title": "Should you rent in an old chung cư (chung cư cũ)?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Flats in old apartment blocks are often cheaper and closer to the centre. The catch is that many of these blocks are still waiting for a safety inspection or are due for redevelopment, so ask about the building's status before you sign. According to Báo Đại biểu Nhân dân on 14 September 2026, Ho Chi Minh City had 220 old apartment blocks needing inspection."
+        },
+        {
+          "type": "p",
+          "text": "The same report said that 72 of those blocks, or 32.72%, had been inspected by mid-July 2026. The city's renovation plan covers its area before the 2025 merger and targets 467 apartment blocks built before 1975 or between 1975 and 1994."
+        },
+        {
+          "type": "h3",
+          "text": "What should I ask when viewing a flat in an old block?"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "Has the building been inspected, and what was the result? The building management or the residents' group usually knows.",
+            "Is the building in a relocation or rebuilding plan? If it is, the lease should say what happens if you have to move out early.",
+            "Have the wiring, water supply and pipes been replaced? Check for a lift, parking and fire exits.",
+            "Does the person letting the flat own it, or are they subletting it?"
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Long leases and relocation orders",
+          "text": "If the building is due for relocation, a long lease may have to end early. Ask before signing, and get a clause in the lease saying your deposit is returned if a relocation order comes."
+        }
+      ]
+    },
+    {
+      "id": "what-a-chung-cu-lease-needs",
+      "title": "What does a chung cư lease need?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Under the Housing Law 2023, a residential lease must be in writing (Article 163). It does not need to be notarised or certified unless both parties want that (Article 164). According to [Thư Viện Nhà Đất](https://thuviennhadat.vn/phap-ly-nha-dat/hop-dong-thue-nha-co-can-phai-cong-chung-khong-635090.html), the lease must contain the items below."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "Full names (or organisation names) and addresses of both parties.",
+            "A description of the flat and of the land plot attached to it.",
+            "The rent, if agreed. Where the state regulates the rent, the parties follow that regulation.",
+            "Payment terms and method.",
+            "The handover date and the lease term.",
+            "Each party's rights, obligations and commitments, plus any other agreements.",
+            "The date the lease takes effect and the signing date.",
+            "Both parties' signatures and full names. An organisation adds its seal, if it has one, and the signer's title."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "For an apartment, also write down who pays the **management fee** and parking, how electricity and water are charged by the meter, and an inventory of the furniture. [What is a lease?](/guides/what-is-a-lease) explains each party's role and duties. If you need to move your things, [Saigon Moving](/saigonmoving), an official eno.vn partner, gives quotes on its own page, and its prices vary by move."
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "text": "This guide explains the general rules and is not legal advice. For a high-value lease or a dispute, ask a lawyer or a notary office."
+        }
+      ]
+    },
+    {
+      "id": "what-this-guide-does-not-cover",
+      "title": "What this guide does not cover",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Renting in Hanoi, including searches for apartments by Ho Tay (West Lake), which is in Hanoi, not Ho Chi Minh City. See [apartments for rent in Tay Ho](/guides/apartment-for-rent-in-tay-ho).",
+            "Letting your own flat, which is the landlord's side. See [rent your apartment to foreigners in Ho Chi Minh City](/guides/rent-your-apartment-to-foreigners-ho-chi-minh-city).",
+            "Buying a chung cư. A sale contract must be notarised when you buy from an individual, but not when you buy from a developer, and buying follows different rules from a lease.",
+            "Rents in the areas that were Binh Duong and Ba Ria-Vung Tau, which the 26 November 2026 Rent Index did not include."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "How much is it to rent an apartment in Binh Thanh?",
+      "a": "According to the eno.vn Rent Index of 26 November 2026, Binh Thanh had 622 apartment listings, with enough data for studio, one-bedroom and two-bedroom medians. Binh Thanh's asking rents were higher than those in Go Vap, Tan Binh and Phu Nhuan, but well below District 1, District 2 and District 4. The figures for each type of flat are in this guide's price table by area."
+    },
+    {
+      "q": "Where can I find a cheap apartment in Binh Thanh?",
+      "a": "The cheapest apartments in Binh Thanh are studios. On 26 November 2026 they had the lowest median asking rent of any apartment type in the area, according to the eno.vn Rent Index. Neighbouring Phu Nhuan and Go Vap had lower studio medians than Binh Thanh that day. Renters should check whether a cheap Binh Thanh listing leaves out the management fee, parking or utilities."
+    },
+    {
+      "q": "How much does it cost to rent an apartment in Hoc Mon?",
+      "a": "According to the eno.vn Rent Index of 26 November 2026, Hoc Mon had one of the lowest median asking rents for apartments in Ho Chi Minh City. The median was based on 88 listings, almost all studios and duplex rooms. Hoc Mon had too few one- or two-bedroom listings for the index to publish medians for those types. The figure is in this guide's Hoc Mon section."
+    },
+    {
+      "q": "What commune is Hoc Mon district now?",
+      "a": "Since 1 July 2025, under Resolution 1685/NQ-UBTVQH15, the former Hoc Mon district has been four communes: Hoc Mon, Ba Diem, Xuan Thoi Son and Dong Thanh. The new Hoc Mon commune covers the old Hoc Mon town plus Tan Hiep and Tan Xuan communes. Tenants in Hoc Mon should use the new commune name on the lease, even though listings often still say Hoc Mon district."
+    },
+    {
+      "q": "Is it safe to rent an old apartment in Ho Chi Minh City?",
+      "a": "Old apartment blocks in Ho Chi Minh City are often cheaper and central, but tenants should check the building's status before signing. According to Báo Đại biểu Nhân dân on 14 September 2026, the city had 220 old apartment blocks needing inspection, and only 72 had been inspected by mid-July 2026. Ask the building management for the inspection result and any relocation plans."
+    },
+    {
+      "q": "Does an apartment lease in Vietnam need to be notarised?",
+      "a": "An apartment lease in Vietnam does not need to be notarised or certified. Under Article 164 of the Housing Law 2023, notarisation is only needed if both parties want it. Article 163 still requires the lease to be in writing, with the rent, payment terms, lease term and each party's rights and obligations, and with both parties' signatures and full names."
+    },
+    {
+      "q": "What is the cheapest district to rent an apartment in Ho Chi Minh City?",
+      "a": "According to the eno.vn Rent Index of 26 November 2026, the lowest median asking rents for apartments were in Binh Tan, Hoc Mon, Nha Be and Binh Chanh, where most listings were studios. For two-bedroom flats, among areas with enough data, Go Vap was cheapest that day, followed by Phu Nhuan and Tan Binh. District 2 and District 1 had the highest overall medians."
+    },
+    {
+      "q": "How do I check an apartment is still available before viewing?",
+      "a": "To check that an apartment in Ho Chi Minh City is still available, message the landlord, agent or partner in eno.vn chat before going to the viewing. GoPlus, an official eno.vn partner, answers its own listings directly in eno.vn chat. Asking first matters most for flats far out, such as in Hoc Mon or Thu Duc, because a well-priced flat can be let before its listing comes down."
+    }
+  ],
+  "sources": [
+    {
+      "title": "HCMC Rent Index",
+      "publisher": "eno.vn",
+      "url": "https://eno.vn/hcmc-rent-index"
+    },
+    {
+      "title": "TP Hồ Chí Minh đốc thúc tiến độ thực hiện cải tạo chung cư cũ tại 32 phường",
+      "publisher": "Báo Đại biểu Nhân dân",
+      "url": "https://daibieunhandan.vn/tp-ho-chi-minh-doc-thuc-tien-do-thuc-hien-cai-tao-chung-cu-cu-tai-32-phuong-10430485.html"
+    },
+    {
+      "title": "Hợp đồng thuê nhà có cần phải công chứng không?",
+      "publisher": "Thư Viện Nhà Đất",
+      "url": "https://thuviennhadat.vn/phap-ly-nha-dat/hop-dong-thue-nha-co-can-phai-cong-chung-khong-635090.html"
+    },
+    {
+      "title": "Xã Hóc Môn mới gồm các xã nào sau sắp xếp ĐVHC TPHCM?",
+      "publisher": "Thư Viện Nhà Đất",
+      "url": "https://thuviennhadat.vn/phap-ly-nha-dat/xa-hoc-mon-moi-gom-cac-xa-nao-sau-sap-xep-dvhc-tphcm-691868.html"
+    }
+  ],
+  "related": [
+    "where-to-live-in-ho-chi-minh-city-as-a-teacher",
+    "cost-of-living-in-ho-chi-minh-city-for-teachers",
+    "your-first-weeks-in-ho-chi-minh-city"
+  ],
+  "lastChecked": "2026-11-26"
+}

@@ -95,8 +95,8 @@ export default function GuidePage() {
       // Two literal <Tr>s, not one <Tr text={cond ? a : b}>: gen-ui-strings extracts literals only, and a string
       // missing from UI_STRINGS is machine-translated per page view for the nine MT languages.
       intro={POSTING_IS_FREE
-        ? <Tr text="eno.vn is a free classifieds marketplace for expats and locals in Vietnam. Here’s everything you need in a couple of minutes." />
-        : <Tr text="eno.vn is a classifieds marketplace for expats and locals in Vietnam. Here’s everything you need in a couple of minutes." />}
+        ? <Tr text="eno.vn is a free classifieds marketplace for expats and locals in Vietnam. Here’s everything you need in 2 minutes." />
+        : <Tr text="eno.vn is a classifieds marketplace for expats and locals in Vietnam. Here’s everything you need in 2 minutes." />}
       sections={[
         { id: 'buyers', label: 'For buyers', labelVi: 'Dành cho người mua' },
         { id: 'sellers', label: 'For sellers', labelVi: 'Dành cho người bán' },

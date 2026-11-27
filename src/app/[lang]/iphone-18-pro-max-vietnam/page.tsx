@@ -41,7 +41,7 @@ const CFG: ModelPageConfig = {
   faqs: [
     {
       q: 'How much is an iPhone 18 Pro Max in Vietnam?',
-      a: `Apple Vietnam’s own recommended price starts at ${formatMoneyFull(APPLE_VN_FROM_PRICE['iPhone 18 Pro Max'], '₫')} for 256GB and runs past 100 million đồng at 2TB. When second-hand units are listed here, the table above shows the cheapest per storage tier with the date it was checked.`,
+      a: `Apple Vietnam’s own recommended price starts at ${formatMoneyFull(APPLE_VN_FROM_PRICE['iPhone 18 Pro Max'], '₫')} for 256GB and runs past 100 million đồng at 2TB. When shops list new or second-hand units here, the tables above show the cheapest per storage tier, with the date they were checked.`,
     },
     {
       q: 'Is the Pro Max worth 3 million đồng more than the Pro?',
@@ -57,7 +57,7 @@ const CFG: ModelPageConfig = {
     },
     {
       q: 'Will the price drop?',
-      a: 'Usually. New-iPhone prices in Vietnam typically settle 1–3 million đồng below launch within the first two months as pre-orders clear, and the slide is largest in absolute terms on the Pro Max; second-hand prices follow them down. The table above is what second-hand units were listed for when it was last checked, not a forecast.',
+      a: 'Usually. New-iPhone prices in Vietnam typically settle 1–3 million đồng below launch within the first two months as pre-orders clear, and the slide is largest in absolute terms on the Pro Max; second-hand prices follow them down. Any table above is what units were listed for when it was last checked, not a forecast.',
     },
   ],
   related: [
