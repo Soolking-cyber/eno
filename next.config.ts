@@ -1266,6 +1266,8 @@ const nextConfig: NextConfig = {
          * cannot drift apart.
          */
         { source: "/.well-known/mcp.json", destination: "/api/well-known/mcp-server-card" },
+        // Universal Commerce Protocol business profile (src/lib/ucp/catalog.ts, owner 2026-11-27): the catalog, no checkout.
+        { source: "/.well-known/ucp", destination: "/api/well-known/ucp" },
         { source: "/.well-known/mcp-server-card", destination: "/api/well-known/mcp-server-card" },
         { source: "/.well-known/mcp-server-card.json", destination: "/api/well-known/mcp-server-card" },
         { source: "/.well-known/mcp/server-card", destination: "/api/well-known/mcp-server-card" },
