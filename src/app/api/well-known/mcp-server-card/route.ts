@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { OAUTH_ISSUER, SIGN_IN_SCOPES } from '@/lib/api/oauth'
 import { SITE_NAME } from '@/lib/edition'
 import { MCP_SERVER_TITLE } from '@/lib/mcp-registry'
+import { ALL_VERSIONS } from '@/lib/mcp/modern'
 
 /**
  * ── MCP Server Card — the discovery document for the MCP server we ALREADY RUN ────────────────
@@ -98,13 +99,12 @@ const RDNS = SITE_NAME.split('.').reverse().join('.')
 const SERVER_VERSION = '2.0.0'
 
 /**
- * ⛔ THE VALUES IN `SUPPORTED` IN route.ts, IN ITS ORDER, NEWEST FIRST. `initialize` echoes
- * the client's requested version when it is in this set and otherwise falls back to 2025-11-25 (since 2026-11-16).
- * ⚠️ THIS IS NOT THE LATEST MCP REVISION AND MUST NOT BE "UPDATED" HERE. The spec is at 2026-07-28;
- * our server does not implement it, and advertising it would make a conforming client negotiate a
- * version the server then silently downgrades. Add one here only after route.ts speaks it.
+ * ⛔ EVERY VERSION route.ts SPEAKS, NEWEST FIRST (src/lib/mcp/modern.ts ALL_VERSIONS): 2026-07-28 per request (no
+ * handshake; since 2026-11-27), then the handshake set `initialize` negotiates (route.ts SUPPORTED, which echoes the
+ * client's requested version when it is a member and otherwise falls back to 2025-11-25). Advertising a version the
+ * route does not speak would make a conforming client pick one the server then refuses or silently downgrades.
  */
-const SUPPORTED_PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05']
+const SUPPORTED_PROTOCOL_VERSIONS = ALL_VERSIONS
 
 function serverCard() {
   return {

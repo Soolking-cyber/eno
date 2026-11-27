@@ -118,27 +118,25 @@ describe('MCP server card — every claim matches src/app/api/mcp/route.ts', () 
     // template literal contains `}`, so the negated class stopped before reaching `version` and
     // this pin went vacuous. It failed loudly only because of the assertion on the next line;
     // without that guard the whole test would have passed while checking nothing.
-    const m = /serverInfo:\s*\{[\s\S]*?version:\s*'([^']+)'/.exec(MCP_ROUTE_SRC)
+    // Since 2026-11-27 serverInfo is a function (initialize's and every 2026-07-28 result's _meta share it).
+    const m = /function serverInfo\([\s\S]*?version:\s*'([^']+)'/.exec(MCP_ROUTE_SRC)
     expect(m, 'serverInfo.version not found in api/mcp/route.ts — the pin below is now vacuous').toBeTruthy()
     const { doc } = await card('marketplace', 'https://eno.vn')
     expect(doc.version).toBe(m![1])
   })
 
-  it('publishes exactly the protocol versions the route negotiates, newest first', async () => {
-    // route.ts: `const SUPPORTED = new Set([...])`, and `initialize` echoes the client's request only
-    // when it is a member. Advertising anything outside this set makes a conforming client negotiate
-    // a version the server then silently downgrades — the exact confusion the card exists to remove.
+  it('publishes exactly the protocol versions the route speaks, newest first: 2026-07-28, then the handshake set', async () => {
+    // route.ts: `const SUPPORTED = new Set([...])` is what `initialize` negotiates (it echoes the client's request only
+    // when it is a member); a request whose _meta names 2026-07-28 is served by that revision (src/lib/mcp/modern.ts).
+    // Advertising anything outside these makes a conforming client pick a version the server then refuses or downgrades.
     const block = /const SUPPORTED = new Set\(\[([^\]]+)\]\)/.exec(MCP_ROUTE_SRC)
     expect(block, 'SUPPORTED not found in api/mcp/route.ts').toBeTruthy()
     const fromRoute = [...block![1].matchAll(/'([^']+)'/g)].map((x) => x[1])
     expect(fromRoute.length).toBeGreaterThan(0)
+    expect(MCP_ROUTE_SRC, 'route.ts no longer serves 2026-07-28 requests through modern.ts').toContain('modernRequest(')
 
     const { doc } = await card('marketplace', 'https://eno.vn')
-    expect(doc.remotes[0].supportedProtocolVersions).toEqual(fromRoute)
-
-    // ⚠️ AND IT IS NOT THE LATEST MCP REVISION. The spec is at 2026-07-28; this server is not. The
-    // assertion is here so that "update the protocol version" is a change to route.ts first.
-    expect(doc.remotes[0].supportedProtocolVersions).not.toContain('2026-07-28')
+    expect(doc.remotes[0].supportedProtocolVersions).toEqual(['2026-07-28', ...fromRoute])
   })
 
   it('claims no SSE stream, because GET on the endpoint is a 405', async () => {
