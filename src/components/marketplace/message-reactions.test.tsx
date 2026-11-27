@@ -150,11 +150,28 @@ describe('BubbleChrome', () => {
     for (const coarse of [false, true]) {
       cleanup()
       mq.matches = coarse
-      render(<BubbleChrome {...props} />)
+      render(<BubbleChrome {...props} barOpen={coarse} />)
       // Reply is in the actions toolbar. Two copies would mean both the beside-the-bubble pill and
       // the stacked popup row rendered — the overlap the owner reported, in a different form.
       expect(screen.getAllByRole('button', { name: /Reply/i })).toHaveLength(1)
     }
+  })
+
+  /**
+   * ⛔ DESKTOP: ONE PILL AT A TIME (owner 2026-11-27, "what on earth is this": the emoji bar stood stacked on the toolbar,
+   * both over the message above). With a mouse the toolbar BECOMES the bar — the actions give way while it is up, and
+   * React folds away but stays focusable so the focus a click left on it never drops to <body>.
+   */
+  it('swaps the desktop toolbar for the bar instead of stacking them', () => {
+    mq.matches = false
+    render(<BubbleChrome {...props} />)
+    expect(screen.queryAllByRole('button', { name: /Reply/i })).toHaveLength(0)
+    expect(document.querySelectorAll('[data-reaction]')).toHaveLength(props.top.length)
+    expect(screen.getByRole('button', { name: 'React' }).className).toBe('sr-only')
+    cleanup()
+    render(<BubbleChrome {...props} barOpen={false} />)
+    expect(screen.getAllByRole('button', { name: /Reply/i })).toHaveLength(1)
+    expect(document.querySelectorAll('[data-reaction]')).toHaveLength(0)
   })
 })
 

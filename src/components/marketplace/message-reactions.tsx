@@ -62,16 +62,38 @@ function BareMark({ kind, className }: { kind: 'plus' | 'cross'; className?: str
   )
 }
 
+/** The desktop pill keeps this far inside the thread column's edge. */
+const EDGE_GAP_PX = 8
+/** A double-click's second click arrives within this (macOS default ≈ 500ms). */
+const DOUBLE_CLICK_MS = 500
+
+/**
+ * The horizontal span the element can actually be seen in: the viewport, narrowed by every ancestor that clips sideways
+ * (the thread's scroller is one — `overflow-y: auto` computes `overflow-x` to auto as well).
+ */
+function clipAncestors(from: HTMLElement): HTMLElement[] {
+  const out: HTMLElement[] = []
+  for (let n = from.parentElement; n; n = n.parentElement) if (getComputedStyle(n).overflowX !== 'visible') out.push(n)
+  return out
+}
+
+function clipEdges(from: HTMLElement): [number, number] {
+  let min = 0
+  let max = document.documentElement.clientWidth
+  for (const n of clipAncestors(from)) {
+    // The padding box, NOT the border box (commit gate, opus): a classic scrollbar (Windows) sits inside the border box,
+    // and a pill clamped to it would hide its last emoji under the scrollbar.
+    const left = n.getBoundingClientRect().left + n.clientLeft
+    min = Math.max(min, left)
+    max = Math.min(max, left + n.clientWidth)
+  }
+  return [min, max]
+}
+
 /** Long enough not to fire while scrolling, short enough not to feel broken. Matches iOS. */
 const LONG_PRESS_MS = 450
 /** A finger that travels this far was scrolling, not pressing. */
 const PRESS_SLOP_PX = 10
-/**
- * How long a pointer must SETTLE on something before its layer opens. Owner: "after short delay
- * like 500 milli seconds … meaningful delays".
- * ⚠️ Without it, dragging down a conversation fires a bar at every message it crosses.
- */
-const OPEN_DELAY_MS = 500
 
 /**
  * IS THIS A TOUCH POINTER? Answered AFTER hydration, on purpose.
@@ -302,25 +324,18 @@ export function BubbleChrome({
   const coarse = usePointerCoarse()
   const root = React.useRef<HTMLDivElement | null>(null)
   const reactButton = React.useRef<HTMLButtonElement | null>(null)
+  const toolbar = React.useRef<HTMLDivElement | null>(null)
+  /** Px the desktop pill is slid sideways to stay inside the thread column — see the toolbar's note. */
+  const [nudge, setNudge] = React.useState(0)
   const top = React.useMemo(() => topReactions(measuredTop), [measuredTop])
 
   /**
-   * THE OPEN DELAY. Owner: "after short delay like 500 milli seconds … meaningful delays".
-   *
-   * ⛔ IT IS NOT DECORATION, IT IS WHAT MAKES THE THREAD READABLE. Without it, dragging the pointer
-   * down a conversation fires a bar and an action row at every message it crosses — a strobe of
-   * floating chrome over the text someone is trying to read. The delay means only a pointer that
-   * SETTLES on something opens anything.
+   * ⛔ THE BAR OPENS ON A CLICK OF React, NEVER ON A HOVER (2026-11-27). The hover-with-delay opening belonged to the faded
+   * heart on every bubble (owner 2026-08-16, "meaningful delays"), removed the same day for Messenger — whose desktop React
+   * button opens its picker on a click. With the bar swapping in where the toolbar stood, a hover-open put an emoji under a
+   * hand that was on its way to Reply or about to click React, and each guard against that found a new hole (commit gate,
+   * opus, rounds 3–5). The TOOLBAR still waits for a settled hover (the thread's 500ms, page.tsx); the bar answers a click.
    */
-  const openTimer = React.useRef<number | null>(null)
-  const clearOpenTimer = () => {
-    if (openTimer.current !== null) { window.clearTimeout(openTimer.current); openTimer.current = null }
-  }
-  const openAfterDelay = (fn: () => void) => {
-    clearOpenTimer()
-    openTimer.current = window.setTimeout(() => { openTimer.current = null; fn() }, OPEN_DELAY_MS)
-  }
-  React.useEffect(() => clearOpenTimer, [])
 
   /**
    * ⛔ A TOUCH USER COULD NOT CLOSE THE BAR. Reviewer-caught: long-press opens it, but every
@@ -354,6 +369,9 @@ export function BubbleChrome({
      */
     if (coarse) return
     function onOutside(event: PointerEvent) {
+      // A pointer at work anywhere is not a keyboard (commit gate, opus): the flag must not pull focus back to React and
+      // reopen the toolbar after a click elsewhere closed it.
+      keyboardFocusIn.current = false
       if (root.current?.contains(event.target as Node | null)) return
       onBarOpenChange(false)
       onActionsOpenChange(false)
@@ -371,7 +389,7 @@ export function BubbleChrome({
     let keyboard = false
     // `:focus-visible` in matches() throws on a browser that predates it: then it is simply not a keyboard pick.
     try { keyboard = !!active?.matches(':focus-visible') } catch { keyboard = false }
-    if (!coarse && active && root.current?.contains(active) && keyboard) {
+    if (!coarse && active && root.current?.contains(active) && keyboard && keyboardFocusIn.current) {
       window.setTimeout(() => reactButton.current?.focus(), 0)
     }
     // The badge plays the emoji that landed (ReactionBadge watches the counts) — nothing to hand over here.
@@ -452,6 +470,76 @@ export function BubbleChrome({
     ].filter(Boolean) as { key: string; icon: typeof Copy; label: string; run: () => void; danger: boolean }[]
   }, [actions, tr])
 
+  /**
+   * THE DESKTOP PILL STAYS INSIDE THE THREAD COLUMN. Measured from layout (offsetLeft/offsetWidth ignore the open
+   * animation's scale) before paint, again whenever its content changes (toolbar ↔ bar, the ✕ coming and going) and on
+   * resize. The pill is slid, never shrunk: every emoji stays a whole target.
+   */
+  const toolbarShown = !coarse && (barOpen || actionsOpen)
+  React.useLayoutEffect(() => {
+    if (!toolbarShown) return
+    const fit = () => {
+      const el = toolbar.current
+      const base = root.current
+      if (!el || !base) return
+      const left = base.getBoundingClientRect().left + el.offsetLeft
+      const right = left + el.offsetWidth
+      const [min, max] = clipEdges(base)
+      const lo = min + EDGE_GAP_PX
+      const hi = max - EDGE_GAP_PX
+      // Too wide for the column: its start edge wins, the end clips (never at 1366+, where the column is ≥ 500px).
+      setNudge(left < lo || right - left > hi - lo ? lo - left : right > hi ? hi - right : 0)
+    }
+    fit()
+    window.addEventListener('resize', fit)
+    // The column can change width without the window doing so (the conversation list collapsing, a scrollbar appearing).
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit)
+    if (root.current) for (const n of clipAncestors(root.current)) ro?.observe(n)
+    return () => { window.removeEventListener('resize', fit); ro?.disconnect() }
+  }, [toolbarShown, barOpen, myReaction, actionList.length, align, top.length])
+
+  /**
+   * ⛔ A CLICK THAT OPENS THE BAR LEAVES NO HIGHLIGHT IN THIS MESSAGE (owner 2026-11-27, desktop: the outgoing bubble's whole
+   * text stood selected in blue under the bar). A click on React or the badge is a reaction, not a copy, so a selection
+   * held inside this message's own box goes — never one elsewhere (the composer, another message).
+   * ⚠️ Only the click's: a selection made in another message, or in the composer, is someone else's business.
+   */
+  const clearSelectionHere = () => {
+    const host = root.current?.parentElement
+    const sel = window.getSelection()
+    if (!host || !sel || sel.isCollapsed) return
+    if ((sel.anchorNode && host.contains(sel.anchorNode)) || (sel.focusNode && host.contains(sel.focusNode))) sel.removeAllRanges()
+  }
+
+  /**
+   * ⚠️ KEYBOARD FOCUS SURVIVES THE SWAP (commit gate, opus). Toolbar ↔ bar unmounts whichever buttons hold focus — a ✕
+   * pressed with Enter, or an emoji picked with Enter — and focus would fall to <body>. When it was
+   * a keyboard's focus that fell, it lands on the bar's first emoji or back on React. A mouse's focus is left alone: after a
+   * click the toolbar is meant to just close.
+   */
+  const keyboardFocusIn = React.useRef(false)
+  const blurTimer = React.useRef<number | null>(null)
+  React.useEffect(() => () => { if (blurTimer.current !== null) window.clearTimeout(blurTimer.current) }, [])
+
+  /**
+   * ⛔ A DOUBLE-CLICK ON React NEVER POSTS A REACTION (commit gate, opus). The first click opens the bar and the swap puts an
+   * emoji (or the ✕) where React stood, so the second click would land on it — a reaction the other person sees and nobody
+   * picked. Clicks where React stood are swallowed for a double-click's length, or until the pointer leaves that spot.
+   */
+  const openedUnder = React.useRef<{ rect: DOMRect; until: number } | null>(null)
+  // The bar's buttons unmount when it closes, so a pointerleave never clears the one last pointed at (commit gate, opus):
+  // without this it would start animating the next time the bar opens.
+  React.useEffect(() => { if (!barOpen) { openedUnder.current = null; setHovered(null) } }, [barOpen])
+  const inRect = (r: DOMRect, e: { clientX: number; clientY: number }) =>
+    e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom
+  React.useLayoutEffect(() => {
+    if (coarse || !keyboardFocusIn.current) return
+    const active = document.activeElement
+    if (active && active !== document.body) return
+    const target = barOpen ? toolbar.current?.querySelector<HTMLElement>('[data-reaction]') : reactButton.current
+    target?.focus()
+  }, [barOpen, coarse])
+
   // ⚠️ ONE DEFINITION, RENDERED INTO TWO PILLS — the desktop one beside the bubble and the phone
   // one stacked under the reaction bar. They are genuinely different POSITIONS of the same
   // toolbar, not two toolbars, and the alternative (one element re-positioned by breakpoint) does
@@ -510,6 +598,7 @@ export function BubbleChrome({
           <button
             key={emoji}
             type="button"
+            data-reaction=""
             tabIndex={barOpen ? 0 : -1}
             onClick={() => pick(emoji)}
             onPointerEnter={() => setHovered(emoji)}
@@ -608,7 +697,9 @@ export function BubbleChrome({
           <button
             type="button"
             tabIndex={barOpen ? 0 : -1}
-            onClick={() => { hapticTap(); onRemove(myReaction); onBarOpenChange(false) }}
+            // Closes the toolbar too, like a pick (commit gate, opus): the actions coming back under a double-clicking cursor
+            // would put its second click on Copy or Delete.
+            onClick={() => { hapticTap(); onRemove(myReaction); onBarOpenChange(false); onActionsOpenChange(false) }}
             aria-label={tr('Remove my reaction', 'Bỏ biểu cảm của tôi')}
             title={tr('Remove my reaction', 'Bỏ biểu cảm của tôi')}
             className="press flex size-8 items-center justify-center text-ink-4 transition-colors hover:text-destructive"
@@ -638,18 +729,55 @@ export function BubbleChrome({
         * ⚠️ VISIBLE WHILE THE BAR IS OPEN TOO, because the bar stands on it.
         * ⛔ MOUSE ONLY: a phone has no gutter (owner 2026-08-17); touch gets the long-press card below.
         */}
+      {/**
+        * ⛔ ONE PILL AT A TIME, KEPT INSIDE THE THREAD COLUMN (owner 2026-11-27, desktop: "what on earth is this"). The emoji
+        * bar used to rise ABOVE this toolbar as a second pill: both stood stacked over the message above and its badge, and
+        * beside a wide outgoing message the bar — growing toward the middle — ran under the conversation list, clipped to
+        * 😂 😭 🤯. Now the toolbar BECOMES the bar in place (React folds away, the five emoji take the actions' seat), and
+        * `nudge` pulls the pill back inside the nearest clipping ancestor (the thread scroller) whenever its content changes
+        * — over the bubble's edge if the gutter is too narrow, which the owner allowed on 2026-08-16 ("let it cover the bubble").
+        * ⚠️ `select-none`: a quick double or triple click on these buttons selected the bubble's whole text next to them.
+        */}
       {!coarse && (
         <div
-          onPointerEnter={() => clearOpenTimer()}
+          ref={toolbar}
+          onPointerMove={(e) => { const g = openedUnder.current; if (g && !inRect(g.rect, e)) openedUnder.current = null }}
+          // A pointer at work here is not a keyboard (commit gate, opus): Safari does not focus a clicked button, so without
+          // this a keyboard flag left from an earlier Tab would pull the toolbar back under a clicking mouse.
+          onPointerDown={() => { keyboardFocusIn.current = false }}
+          onClickCapture={(e) => {
+            const g = openedUnder.current
+            if (!g || e.detail === 0 || Date.now() > g.until || !inRect(g.rect, e)) return
+            // Kept for the whole window, not one click (commit gate, opus): a triple-click's third click is as unaimed.
+            e.stopPropagation()
+            e.preventDefault()
+          }}
           // ⛔ THE KEYBOARD WAY IN (commit gate, opus): the old heart was focusable on every bubble, and with it gone a
           // keyboard user could not add a first reaction. React is now always in the tab order; focusing it shows the
           // toolbar, and focus leaving this message closes it.
-          onFocus={() => { if (!actionsOpen) onActionsOpenChange(true) }}
+          onFocus={(e) => {
+            // `:focus-visible` in matches() throws on a browser that predates it: then it is not a keyboard's focus.
+            try { keyboardFocusIn.current = (e.target as HTMLElement).matches(':focus-visible') } catch { keyboardFocusIn.current = false }
+            if (!actionsOpen) onActionsOpenChange(true)
+          }}
           // Not while the "＋" grid is open: it is a portalled popup, so focus moving into it leaves this subtree.
-          onBlur={(e) => { if (allOpen) return; if (!root.current?.contains(e.relatedTarget as Node | null)) { onActionsOpenChange(false); onBarOpenChange(false) } }}
+          // Judged one task later: the toolbar ↔ bar swap blurs the button it unmounts, and the keyboard-focus effect puts the
+          // focus back inside this message first — only focus that really left closes the pill.
+          onBlur={(e) => {
+            if (allOpen || root.current?.contains(e.relatedTarget as Node | null)) return
+            if (blurTimer.current !== null) window.clearTimeout(blurTimer.current)
+            blurTimer.current = window.setTimeout(() => {
+              blurTimer.current = null
+              if (root.current?.contains(document.activeElement)) return
+              keyboardFocusIn.current = false
+              onActionsOpenChange(false)
+              onBarOpenChange(false)
+            }, 0)
+          }}
           className={cn(
             // One pill (owner 2026-08-16: "one pill … similar to bubble box"); open 200ms, close 100ms (the house contract).
-            'absolute top-1/2 z-30 flex -translate-y-1/2 items-center gap-0.5 rounded-2xl border border-border bg-popover p-0.5 shadow-pop transition-[opacity,scale,translate]',
+            'absolute top-1/2 z-30 flex -translate-y-1/2 select-none items-center gap-0.5 rounded-2xl border border-border bg-popover p-0.5 shadow-pop transition-[opacity,scale,translate]',
+            barOpen && 'rounded-full p-1 ring-1 ring-foreground/10',
             'before:absolute before:inset-y-0 before:w-3 before:content-[""]',
             align === 'end'
               ? 'right-full mr-2 origin-right before:left-full'
@@ -668,46 +796,36 @@ export function BubbleChrome({
               ? 'pointer-events-auto translate-x-0 scale-100 opacity-100 duration-200'
               : cn('pointer-events-none scale-90 opacity-0 duration-100', align === 'end' ? 'translate-x-1' : '-translate-x-1'),
           )}
-          style={{ transitionTimingFunction: 'var(--ease-spring)' }}
+          // `transform`, not `translate`: the individual `translate` property carries the centring and the open slide (Tailwind
+          // v4), and `transform` composes with it instead of replacing it. Not in the transition list: the pill lands placed.
+          style={{ transitionTimingFunction: 'var(--ease-spring)', transform: nudge ? `translateX(${nudge}px)` : undefined }}
         >
           <button
             ref={reactButton}
             type="button"
             aria-label={tr('React', 'Bày tỏ cảm xúc')}
             aria-expanded={barOpen}
+            // Out of the tab order while folded (commit gate, opus): Shift+Tab from the bar must not land on an invisible control.
+            tabIndex={barOpen ? -1 : 0}
             title={tr('React', 'Bày tỏ cảm xúc')}
-            // Hover settles into the bar after the house delay (owner: "meaningful delays"); a click opens it at once.
-            onPointerEnter={(e) => { if (e.pointerType === 'mouse' && !barOpen) openAfterDelay(() => onBarOpenChange(true)) }}
-            onPointerLeave={(e) => { if (e.pointerType === 'mouse') clearOpenTimer() }}
-            // OPENS, never toggles (commit gate, opus): a pointer that rests on React opens the bar after the delay, and the
-            // click that follows must not shut it. It closes on a pick, an outside press, Escape or the pointer leaving.
-            onClick={() => { clearOpenTimer(); onBarOpenChange(true) }}
-            // Open = the house grammar for a disclosure: aria-expanded turns the glyph bold, in the accent ink (globals.css).
-            className={cn('press flex size-7 items-center justify-center rounded-xl text-body transition-colors hover:bg-tint hover:text-foreground', barOpen && 'bg-tint')}
+            // OPENS (see the click-only note above). It closes on a pick, the ✕, an outside press or the pointer leaving.
+            // A KEYBOARD press (detail 0) carries focus into the bar, since React folds away while the bar is up.
+            onClick={(e) => {
+              clearSelectionHere()
+              openedUnder.current = e.detail > 0 ? { rect: e.currentTarget.getBoundingClientRect(), until: Date.now() + DOUBLE_CLICK_MS } : null
+              onBarOpenChange(true)
+              if (e.detail === 0) window.requestAnimationFrame(() => toolbar.current?.querySelector<HTMLElement>('[data-reaction]')?.focus())
+            }}
+            /**
+             * ⚠️ FOLDED AWAY, NOT UNMOUNTED, WHILE THE BAR IS UP: `sr-only` keeps it focusable, so the focus a click left on it
+             * stays inside this toolbar (unmounting it would blur to <body>, and the blur handler would shut the bar it opened).
+             * Open = the house grammar for a disclosure: aria-expanded turns the glyph bold, in the accent ink (globals.css).
+             */
+            className={barOpen ? 'sr-only' : 'press flex size-7 items-center justify-center rounded-xl text-body transition-colors hover:bg-tint hover:text-foreground'}
           >
             <Heart className="size-3.5" aria-hidden />
           </button>
-          {actionButtons}
-
-          {/* THE MOUSE BAR — a descendant of the toolbar, rising above it; may cover the bubble (owner 2026-08-16: "its okay
-              let it cover the bubble"). `aria-hidden` + tabIndex -1 while closed: never an invisible target. */}
-          <div
-            aria-hidden={!barOpen}
-            className={cn(
-              'absolute bottom-full z-30 mb-1.5 flex items-center gap-0.5 rounded-full border border-border bg-popover p-1 shadow-pop ring-1 ring-foreground/10 transition-[opacity,scale,translate]',
-              // The 6px bridge down to the toolbar, so the reach up never leaves the subtree.
-              'before:absolute before:inset-x-0 before:top-full before:h-2 before:content-[""]',
-              // Pinned to the toolbar's outer end, growing toward the middle of the thread — beside the bubble that is over the
-              // gutter; below `sm`, where the toolbar stands on the bubble's outer edge, the same rule keeps it on screen.
-              align === 'end' ? 'right-0 origin-bottom-right' : 'left-0 origin-bottom-left',
-              barOpen
-                ? 'pointer-events-auto translate-y-0 scale-100 opacity-100 duration-200'
-                : 'pointer-events-none translate-y-1 scale-90 opacity-0 duration-100',
-            )}
-            style={{ transitionTimingFunction: 'var(--ease-spring)' }}
-          >
-            {barContent}
-          </div>
+          {barOpen ? barContent : actionButtons}
         </div>
       )}
 
@@ -734,7 +852,7 @@ export function BubbleChrome({
       {/* ⚠️ WITH A MOUSE, A BADGE-OPENED BAR IS PINNED (commit gate, opus): the bar stands on the toolbar beside the bubble,
           and the diagonal from the badge to it crosses gutter no bridge covers — the thread's 160ms leave-close fired on the
           way. Locked like the "＋" grid: it closes on a pick, an outside press, or its own ✕, never on the pointer leaving. */}
-      <ReactionBadge reactions={reactions} align={align} onOpen={() => { hapticSelection(); onBarOpenChange(true); if (coarse) onActionsOpenChange(false); else onLockChange?.(true) }} />
+      <ReactionBadge reactions={reactions} align={align} onOpen={() => { hapticSelection(); onBarOpenChange(true); if (coarse) onActionsOpenChange(false); else { clearSelectionHere(); onLockChange?.(true) } }} />
 
       {/**
         * TOUCH: THE LONG-PRESS CARD — emoji row over the quick actions, in a Base UI popup kept 12px inside the viewport.
