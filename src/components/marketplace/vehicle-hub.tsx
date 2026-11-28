@@ -15,6 +15,7 @@ import { hubBooking, hubDisclosure, hubIntro, type HubCopyInput } from '@/lib/ve
 import { VEHICLE_HUB_SLUGS, VEHICLE_HUB_SUBCAT } from '@/lib/vehicle-hub-slugs'
 import { hubTypeChips } from '@/lib/vehicle-hub-chips'
 import { VehicleHubFilterRow } from './vehicle-hub-filter-row'
+import { vietnameseTitlesFirst } from '@/lib/vehicle-hub-order'
 
 /**
  * THE HCMC VEHICLE-HIRE HUBS — four URLs, one component: {car, motorbike} × {en, vi}.
@@ -110,7 +111,8 @@ function Grid({ data, lang }: { data: VehicleHubData; lang: Lang }) {
     <>
       <div className="mt-4">
         <SellerListings
-          listings={data.listings}
+          // The Vietnamese page opens on Vietnamese titles: the same cards, each half in rank order (vehicle-hub-order.ts).
+          listings={lang === 'vi' ? vietnameseTitlesFirst(data.listings) : data.listings}
           sortable={data.total > 1}
           /* Sort and Show more stay on this page (E-SORT / C1-DEADEND retired the link-out `sortBase`):
              they page over the same set the "See all" link opens — rentals › this vehicle subcategory. */
