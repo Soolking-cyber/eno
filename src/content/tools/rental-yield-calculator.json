@@ -1,0 +1,364 @@
+{
+  "faqs": [
+    {
+      "a": {
+        "en": "Gross yield is a full year of rent divided by what you paid for the property. Net yield first takes away the empty months and the yearly costs such as management, maintenance, building fees and tax, so it shows the return you actually keep.",
+        "vi": "Tỷ suất gộp là tiền thuê đủ 12 tháng chia cho số tiền bỏ ra mua căn nhà. Tỷ suất ròng trừ trước các tháng bỏ trống và chi phí hằng năm như phí quản lý, bảo trì, phí tòa nhà và thuế, nên cho thấy phần lợi nhuận bạn thực sự giữ lại."
+      },
+      "q": {
+        "en": "What is the difference between gross and net rental yield?",
+        "vi": "Tỷ suất cho thuê gộp và ròng khác nhau thế nào?"
+      }
+    },
+    {
+      "a": {
+        "en": "It is the total you invested, the price plus purchase and furnishing costs, divided by the net rental income for a year. It ignores any change in the property's value and assumes the rent and costs stay the same.",
+        "vi": "Đó là tổng vốn bỏ ra, gồm giá mua cộng chi phí mua và nội thất, chia cho thu nhập cho thuê ròng một năm. Cách tính này bỏ qua việc giá nhà tăng hay giảm và giả định tiền thuê, chi phí không đổi."
+      },
+      "q": {
+        "en": "How is the payback period worked out?",
+        "vi": "Số năm hoàn vốn được tính thế nào?"
+      }
+    },
+    {
+      "a": {
+        "en": "Between tenants a property often earns nothing while you still pay its costs. Entering the months you expect it to stand empty gives a more honest net income than assuming rent for all 12 months.",
+        "vi": "Giữa hai lượt khách thuê, căn nhà thường không có thu nhập trong khi bạn vẫn phải trả chi phí. Nhập số tháng dự kiến bỏ trống giúp thu nhập ròng sát thực tế hơn so với giả định có tiền thuê đủ 12 tháng."
+      },
+      "q": {
+        "en": "Why include vacant months?",
+        "vi": "Vì sao phải tính số tháng bỏ trống?"
+      }
+    },
+    {
+      "a": {
+        "en": "No. It measures the return on the whole price as if paid in cash. If you borrow, add the yearly interest to one of the yearly cost boxes to see its effect on the net income and yield.",
+        "vi": "Không. Công cụ tính lợi nhuận trên toàn bộ giá mua như khi trả bằng tiền mặt. Nếu vay, hãy cộng tiền lãi mỗi năm vào một ô chi phí hằng năm để thấy ảnh hưởng tới thu nhập và tỷ suất ròng."
+      },
+      "q": {
+        "en": "Does it include a mortgage?",
+        "vi": "Công cụ có tính khoản vay mua nhà không?"
+      }
+    },
+    {
+      "a": {
+        "en": "No. The calculator runs in your browser, and nothing you type is stored or sent anywhere.",
+        "vi": "Không. Công cụ chạy trên trình duyệt của bạn, và những gì bạn nhập không được lưu hay gửi đi đâu."
+      },
+      "q": {
+        "en": "Is anything I type stored?",
+        "vi": "Những gì tôi nhập có được lưu không?"
+      }
+    }
+  ],
+  "slug": "rental-yield-calculator",
+  "intro": {
+    "en": "The net rental yield is the yearly rent you actually collect, minus the yearly running costs, divided by everything you paid for the property, times 100. Enter the price, the purchase and furnishing costs, the monthly rent, the months you expect it to stand empty and the yearly costs, and compare listings by the return each one would really give.",
+    "vi": "Tỷ suất lợi nhuận ròng bằng tiền thuê thực thu trong năm trừ chi phí vận hành cả năm, chia cho tổng số tiền bỏ ra mua căn nhà, rồi nhân 100. Nhập giá mua, chi phí mua và sắm nội thất, tiền thuê mỗi tháng, số tháng dự kiến bỏ trống và các khoản chi phí hằng năm, rồi so sánh xem mỗi căn thực sự mang lại bao nhiêu."
+  },
+  "notes": [
+    {
+      "text": {
+        "en": "The yearly costs and empty months take up all the rent, so the property never pays back from rent at these figures and the payback shows 0.",
+        "vi": "Chi phí hằng năm và các tháng bỏ trống đã lấy hết tiền thuê, nên với các số này căn nhà không hoàn vốn từ tiền thuê và số năm hoàn vốn hiển thị 0."
+      },
+      "when": "netIncome <= 0"
+    },
+    {
+      "text": {
+        "en": "With 12 vacant months there is no rent at all for the year.",
+        "vi": "Với 12 tháng bỏ trống, cả năm không có đồng tiền thuê nào."
+      },
+      "when": "vacantMonths == 12"
+    },
+    {
+      "text": {
+        "en": "No tax is entered. Rental income in Vietnam can be taxable depending on the yearly amount, so check the current rules.",
+        "vi": "Bạn chưa nhập thuế. Thu nhập cho thuê ở Việt Nam có thể phải nộp thuế tùy theo mức thu cả năm, hãy kiểm tra quy định hiện hành."
+      },
+      "when": "tax == 0 and rent > 0"
+    }
+  ],
+  "tests": [
+    {
+      "expect": {
+        "netYield": 4.2031,
+        "netIncome": 134500000,
+        "grossYield": 5.625,
+        "paybackYears": 23.7918,
+        "totalInvested": 3200000000
+      },
+      "inputs": {
+        "tax": 16500000,
+        "rent": 15000000,
+        "price": 3000000000,
+        "extraCosts": 200000000,
+        "management": 6000000,
+        "buildingFee": 3000000,
+        "maintenance": 5000000,
+        "vacantMonths": 1
+      }
+    },
+    {
+      "expect": {
+        "netYield": 6,
+        "netIncome": 120000000,
+        "grossYield": 6,
+        "paybackYears": 16.6667,
+        "totalInvested": 2000000000
+      },
+      "inputs": {
+        "tax": 0,
+        "rent": 10000000,
+        "price": 2000000000,
+        "extraCosts": 0,
+        "management": 0,
+        "buildingFee": 0,
+        "maintenance": 0,
+        "vacantMonths": 0
+      }
+    },
+    {
+      "expect": {
+        "netYield": -0.2727,
+        "netIncome": -3000000,
+        "grossYield": 5.4545,
+        "paybackYears": 0,
+        "totalInvested": 1100000000
+      },
+      "inputs": {
+        "tax": 0,
+        "rent": 5000000,
+        "price": 1000000000,
+        "extraCosts": 100000000,
+        "management": 0,
+        "buildingFee": 1000000,
+        "maintenance": 2000000,
+        "vacantMonths": 12
+      }
+    },
+    {
+      "expect": {
+        "netYield": 5.1,
+        "netIncome": 280500000,
+        "grossYield": 6.5455,
+        "paybackYears": 19.6078,
+        "totalInvested": 5500000000
+      },
+      "inputs": {
+        "tax": 34500000,
+        "rent": 30000000,
+        "price": 5000000000,
+        "extraCosts": 500000000,
+        "management": 12000000,
+        "buildingFee": 8000000,
+        "maintenance": 10000000,
+        "vacantMonths": 0.5
+      }
+    }
+  ],
+  "title": {
+    "en": "Rental yield calculator",
+    "vi": "Tính tỷ suất lợi nhuận cho thuê"
+  },
+  "inputs": [
+    {
+      "id": "price",
+      "max": 100000000000,
+      "min": 100000000,
+      "help": {
+        "en": "The price agreed with the seller.",
+        "vi": "Giá đã thỏa thuận với người bán."
+      },
+      "kind": "money",
+      "label": {
+        "en": "Purchase price",
+        "vi": "Giá mua"
+      },
+      "default": 3000000000
+    },
+    {
+      "id": "extraCosts",
+      "max": 10000000000,
+      "min": 0,
+      "help": {
+        "en": "Fees, taxes and notary costs of the purchase, plus furniture, appliances and repairs before letting.",
+        "vi": "Phí, thuế, công chứng khi mua, cộng nội thất, thiết bị và sửa chữa trước khi cho thuê."
+      },
+      "kind": "money",
+      "label": {
+        "en": "Purchase and furnishing costs",
+        "vi": "Chi phí mua và nội thất"
+      },
+      "default": 200000000
+    },
+    {
+      "id": "rent",
+      "max": 10000000000,
+      "min": 0,
+      "help": {
+        "en": "The rent you expect a tenant to pay each month.",
+        "vi": "Số tiền thuê bạn dự kiến người thuê trả mỗi tháng."
+      },
+      "kind": "money",
+      "label": {
+        "en": "Monthly rent",
+        "vi": "Tiền thuê mỗi tháng"
+      },
+      "default": 15000000
+    },
+    {
+      "id": "vacantMonths",
+      "max": 12,
+      "min": 0,
+      "help": {
+        "en": "Months each year with no tenant paying rent, from 0 to 12.",
+        "vi": "Số tháng mỗi năm không có người thuê trả tiền, từ 0 đến 12."
+      },
+      "kind": "months",
+      "label": {
+        "en": "Vacant months a year",
+        "vi": "Số tháng bỏ trống mỗi năm"
+      },
+      "default": 1
+    },
+    {
+      "id": "management",
+      "max": 10000000000,
+      "min": 0,
+      "help": {
+        "en": "What an agent or manager charges you for the year, if anyone.",
+        "vi": "Khoản trả cho môi giới hoặc người quản lý trong năm, nếu có."
+      },
+      "kind": "money",
+      "label": {
+        "en": "Letting management a year",
+        "vi": "Phí quản lý cho thuê mỗi năm"
+      },
+      "default": 6000000
+    },
+    {
+      "id": "maintenance",
+      "max": 10000000000,
+      "min": 0,
+      "help": {
+        "en": "Repairs and replacing worn items over a year.",
+        "vi": "Sửa chữa và thay đồ hỏng trong một năm."
+      },
+      "kind": "money",
+      "label": {
+        "en": "Maintenance a year",
+        "vi": "Bảo trì mỗi năm"
+      },
+      "default": 5000000
+    },
+    {
+      "id": "buildingFee",
+      "max": 10000000000,
+      "min": 0,
+      "help": {
+        "en": "The building service fee you pay as owner, for the whole year.",
+        "vi": "Phí dịch vụ tòa nhà chủ nhà phải trả, tính cho cả năm."
+      },
+      "kind": "money",
+      "label": {
+        "en": "Building fee a year",
+        "vi": "Phí tòa nhà mỗi năm"
+      },
+      "default": 3000000
+    },
+    {
+      "id": "tax",
+      "max": 10000000000,
+      "min": 0,
+      "help": {
+        "en": "The tax you expect to pay on the year's rental income.",
+        "vi": "Số thuế bạn dự kiến nộp trên thu nhập cho thuê cả năm."
+      },
+      "kind": "money",
+      "label": {
+        "en": "Tax on rent a year",
+        "vi": "Thuế cho thuê mỗi năm"
+      },
+      "default": 16500000
+    }
+  ],
+  "example": {
+    "inputs": {
+      "tax": 16500000,
+      "rent": 15000000,
+      "price": 3000000000,
+      "extraCosts": 200000000,
+      "management": 6000000,
+      "buildingFee": 3000000,
+      "maintenance": 5000000,
+      "vacantMonths": 1
+    }
+  },
+  "outputs": [
+    {
+      "id": "totalInvested",
+      "label": {
+        "en": "Total invested",
+        "vi": "Tổng vốn bỏ ra"
+      },
+      "format": "money",
+      "formula": "price + extraCosts"
+    },
+    {
+      "id": "grossYield",
+      "label": {
+        "en": "Gross yearly yield",
+        "vi": "Tỷ suất gộp mỗi năm"
+      },
+      "format": "percent",
+      "formula": "rent * 12 / totalInvested * 100"
+    },
+    {
+      "id": "netIncome",
+      "label": {
+        "en": "Net rental income a year",
+        "vi": "Thu nhập ròng mỗi năm"
+      },
+      "format": "money",
+      "formula": "rent * (12 - vacantMonths) - management - maintenance - buildingFee - tax"
+    },
+    {
+      "id": "netYield",
+      "label": {
+        "en": "Net yearly yield",
+        "vi": "Tỷ suất ròng mỗi năm"
+      },
+      "format": "percent",
+      "formula": "netIncome / totalInvested * 100"
+    },
+    {
+      "id": "paybackYears",
+      "label": {
+        "en": "Payback period in years",
+        "vi": "Số năm hoàn vốn"
+      },
+      "format": "number",
+      "formula": "if(netIncome > 0, totalInvested / netIncome, 0)"
+    }
+  ],
+  "related": [
+    "/c/rentals",
+    "/hcmc-rent-index",
+    "/furnishing-a-home-in-vietnam",
+    "/rental-cost-comparison"
+  ],
+  "version": 1,
+  "howItWorks": {
+    "en": "The total invested is the purchase price plus the purchase and furnishing costs. The gross yield is the monthly rent times 12, divided by the total invested, times 100.\n\nThe net yearly income is the monthly rent times the months the property is let, which is 12 minus the vacant months, less the management, maintenance, building fee and tax amounts for the year. The net yield is that income divided by the total invested, times 100.\n\nThe payback period is the total invested divided by the net yearly income: how many years of rent it takes to recover what you paid. If the net income is zero or less, the property never pays back from rent and the payback shows 0.",
+    "vi": "Tổng vốn bỏ ra bằng giá mua cộng chi phí mua và chi phí nội thất. Tỷ suất gộp bằng tiền thuê mỗi tháng nhân 12, chia cho tổng vốn, rồi nhân 100.\n\nThu nhập ròng cả năm bằng tiền thuê mỗi tháng nhân số tháng có người thuê, tức 12 trừ số tháng bỏ trống, sau đó trừ phí quản lý cho thuê, chi phí bảo trì, phí tòa nhà và tiền thuế của cả năm. Tỷ suất ròng bằng thu nhập này chia cho tổng vốn, rồi nhân 100.\n\nThời gian hoàn vốn bằng tổng vốn chia cho thu nhập ròng mỗi năm: cần bao nhiêu năm tiền thuê để thu lại số tiền đã bỏ ra. Nếu thu nhập ròng bằng 0 hoặc âm, căn nhà không bao giờ hoàn vốn từ tiền thuê và kết quả hiển thị 0."
+  },
+  "description": {
+    "en": "Work out the gross and net yearly rental yield, the net rental income and the payback period of a property you buy to let out.",
+    "vi": "Tính tỷ suất lợi nhuận cho thuê gộp và ròng mỗi năm, thu nhập cho thuê ròng và số năm hoàn vốn của căn nhà mua để cho thuê."
+  },
+  "limitations": {
+    "en": "It assumes the rent and the costs stay the same every year.\nIt leaves out any rise or fall in the property's value when you sell.\nLoan interest is not counted: add it to the yearly costs if you borrow.\nThe tax is the amount you type, not worked out from the current rules.",
+    "vi": "Công cụ giả định tiền thuê và chi phí không đổi qua các năm.\nCông cụ không tính phần tăng hay giảm giá trị căn nhà khi bán.\nLãi vay không được tính: nếu vay, hãy cộng lãi vào chi phí hằng năm.\nTiền thuế là số bạn nhập, không được tính theo quy định hiện hành."
+  }
+}

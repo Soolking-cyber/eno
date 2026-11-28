@@ -1,0 +1,355 @@
+{
+  "faqs": [
+    {
+      "a": {
+        "en": "Only if the total you pay equals the cash price. Many plans add a processing fee, loan insurance or a monthly collection fee, or the instalment price is higher than the cash price. Add every fee here and the extra cost shows what the plan really costs.",
+        "vi": "Chỉ khi tổng số tiền bạn trả đúng bằng giá tiền mặt. Nhiều gói có thêm phí hồ sơ, bảo hiểm khoản vay hay phí thu hộ hằng tháng, hoặc giá trả góp cao hơn giá trả thẳng. Nhập đủ các khoản phí vào đây, phần trả thêm sẽ cho thấy chi phí thật của gói."
+      },
+      "q": {
+        "en": "Is a 0% instalment plan really free of interest?",
+        "vi": "Trả góp 0% có thật sự không mất lãi không?"
+      }
+    },
+    {
+      "a": {
+        "en": "It uses the constant-ratio formula: 24 times the extra cost, divided by the amount borrowed after one-off fees times the number of months plus 1. It is a close estimate for short plans; lenders use an exact month-by-month method, so their figure can differ, especially over long terms.",
+        "vi": "Công cụ dùng công thức tỷ lệ cố định: 24 nhân phần trả thêm, chia cho số tiền vay sau khi trừ phí một lần nhân với số tháng cộng 1. Kết quả khá sát với các gói ngắn hạn; bên cho vay tính chính xác theo từng tháng nên con số có thể khác, nhất là với kỳ hạn dài."
+      },
+      "q": {
+        "en": "How is the yearly interest rate worked out?",
+        "vi": "Lãi suất năm được tính như thế nào?"
+      }
+    },
+    {
+      "a": {
+        "en": "A fee paid at the start means you hand money back to the lender on day one, so the credit you really receive is smaller. Working the rate on that smaller amount shows the true cost of the fee as interest.",
+        "vi": "Khoản phí trả ngay lúc đầu nghĩa là bạn trả lại tiền cho bên cho vay ngay từ ngày đầu, nên số tiền thực sự được vay nhỏ hơn. Tính lãi suất trên số tiền nhỏ hơn đó mới phản ánh đúng chi phí của khoản phí."
+      },
+      "q": {
+        "en": "Why are one-off fees taken off the amount borrowed?",
+        "vi": "Vì sao phí một lần được trừ khỏi số tiền vay?"
+      }
+    },
+    {
+      "a": {
+        "en": "No. The calculator runs in your browser, and nothing you type is stored or sent anywhere.",
+        "vi": "Không. Công cụ chạy trên trình duyệt của bạn, và những gì bạn nhập không được lưu hay gửi đi đâu."
+      },
+      "q": {
+        "en": "Is anything I type stored?",
+        "vi": "Những gì tôi nhập có được lưu không?"
+      }
+    }
+  ],
+  "slug": "installment-plan-true-cost-calculator",
+  "intro": {
+    "en": "The total paid is the down payment plus the one-off fees plus the monthly instalment and monthly fees times the number of months, and the extra cost is that total minus the cash price. Type the figures from the shop or the finance company's offer to see what a trả góp or 0% deal really costs compared with paying cash, and the yearly interest rate it works out to.",
+    "vi": "Tổng số tiền phải trả bằng tiền trả trước cộng các khoản phí một lần, cộng tiền góp và phí hằng tháng nhân với số tháng; phần trả thêm là tổng đó trừ đi giá trả tiền mặt. Nhập đúng các con số trong đề nghị của cửa hàng hoặc công ty tài chính để biết gói trả góp hay trả góp 0% thực sự tốn bao nhiêu so với trả thẳng, và tương đương với lãi suất bao nhiêu mỗi năm."
+  },
+  "notes": [
+    {
+      "text": {
+        "en": "The plan adds up to less than the cash price: check the figures you typed.",
+        "vi": "Tổng số tiền trả góp thấp hơn giá tiền mặt: hãy kiểm tra lại các con số đã nhập."
+      },
+      "when": "extraCost < 0"
+    },
+    {
+      "text": {
+        "en": "With these figures the plan costs exactly the cash price, so it is a true 0% plan.",
+        "vi": "Với các con số này, gói trả góp đúng bằng giá tiền mặt, tức là thực sự 0%."
+      },
+      "when": "extraCost == 0"
+    },
+    {
+      "text": {
+        "en": "The down payment and instalments alone do not exceed the cash price: the whole extra cost comes from the fees.",
+        "vi": "Riêng tiền trả trước và tiền góp không vượt giá tiền mặt: toàn bộ phần trả thêm đến từ các khoản phí."
+      },
+      "when": "extraCost > 0 and downPayment + monthlyPayment * months <= cashPrice"
+    },
+    {
+      "text": {
+        "en": "The down payment and one-off fees cover the cash price, so nothing is borrowed and no yearly rate is shown.",
+        "vi": "Tiền trả trước và phí một lần đã bằng hoặc vượt giá tiền mặt, nên không có khoản vay và không hiển thị lãi suất năm."
+      },
+      "when": "amountBorrowed - upfrontFee <= 0"
+    },
+    {
+      "text": {
+        "en": "Over more than 24 months the approximate rate can differ noticeably from the exact effective rate.",
+        "vi": "Với kỳ hạn trên 24 tháng, lãi suất ước tính có thể lệch đáng kể so với lãi suất thực tế chính xác."
+      },
+      "when": "months > 24 and effectiveRate > 0"
+    }
+  ],
+  "tests": [
+    {
+      "expect": {
+        "extraCost": 1440000,
+        "totalPaid": 25440000,
+        "extraPercent": 6,
+        "monthlyTotal": 1720000,
+        "effectiveRate": 13.846,
+        "amountBorrowed": 19200000
+      },
+      "inputs": {
+        "months": 12,
+        "cashPrice": 24000000,
+        "monthlyFee": 120000,
+        "upfrontFee": 0,
+        "downPayment": 4800000,
+        "monthlyPayment": 1600000
+      }
+    },
+    {
+      "expect": {
+        "extraCost": 2400000,
+        "totalPaid": 32400000,
+        "extraPercent": 8,
+        "effectiveRate": 18.4615,
+        "amountBorrowed": 24000000
+      },
+      "inputs": {
+        "months": 12,
+        "cashPrice": 30000000,
+        "monthlyFee": 0,
+        "upfrontFee": 0,
+        "downPayment": 6000000,
+        "monthlyPayment": 2200000
+      }
+    },
+    {
+      "expect": {
+        "extraCost": 500000,
+        "totalPaid": 15500000,
+        "extraPercent": 3.3333,
+        "effectiveRate": 8.0268
+      },
+      "inputs": {
+        "months": 12,
+        "cashPrice": 15000000,
+        "monthlyFee": 0,
+        "upfrontFee": 500000,
+        "downPayment": 3000000,
+        "monthlyPayment": 1000000
+      }
+    },
+    {
+      "expect": {
+        "extraCost": 0,
+        "totalPaid": 10000000,
+        "extraPercent": 0,
+        "monthlyTotal": 0,
+        "effectiveRate": 0,
+        "amountBorrowed": 0
+      },
+      "inputs": {
+        "months": 6,
+        "cashPrice": 10000000,
+        "monthlyFee": 0,
+        "upfrontFee": 0,
+        "downPayment": 10000000,
+        "monthlyPayment": 0
+      }
+    },
+    {
+      "expect": {
+        "extraCost": 100000000,
+        "totalPaid": 700000000,
+        "extraPercent": 16.6667,
+        "effectiveRate": 9.5962,
+        "amountBorrowed": 420000000
+      },
+      "inputs": {
+        "months": 60,
+        "cashPrice": 600000000,
+        "monthlyFee": 0,
+        "upfrontFee": 10000000,
+        "downPayment": 180000000,
+        "monthlyPayment": 8500000
+      }
+    }
+  ],
+  "title": {
+    "en": "Instalment plan true cost calculator",
+    "vi": "Tính chi phí thật của gói trả góp"
+  },
+  "inputs": [
+    {
+      "id": "cashPrice",
+      "max": 100000000000,
+      "min": 100000,
+      "help": {
+        "en": "What you would pay if you paid the whole price today.",
+        "vi": "Số tiền bạn trả nếu thanh toán hết ngay hôm nay."
+      },
+      "kind": "money",
+      "label": {
+        "en": "Cash price",
+        "vi": "Giá trả tiền mặt"
+      },
+      "default": 24000000
+    },
+    {
+      "id": "downPayment",
+      "max": 100000000000,
+      "min": 0,
+      "help": {
+        "en": "The amount you pay at the start, before the first instalment.",
+        "vi": "Số tiền trả ngay lúc mua, trước kỳ góp đầu tiên."
+      },
+      "kind": "money",
+      "label": {
+        "en": "Down payment",
+        "vi": "Tiền trả trước"
+      },
+      "default": 4800000
+    },
+    {
+      "id": "monthlyPayment",
+      "max": 100000000000,
+      "min": 0,
+      "help": {
+        "en": "The instalment on the contract, without separate monthly fees.",
+        "vi": "Số tiền góp ghi trong hợp đồng, chưa gồm các khoản phí hằng tháng riêng."
+      },
+      "kind": "money",
+      "label": {
+        "en": "Monthly instalment",
+        "vi": "Tiền góp mỗi tháng"
+      },
+      "default": 1600000
+    },
+    {
+      "id": "months",
+      "max": 600,
+      "min": 1,
+      "help": {
+        "en": "How many monthly instalments the plan has.",
+        "vi": "Số kỳ góp hằng tháng của gói."
+      },
+      "kind": "months",
+      "label": {
+        "en": "Number of months",
+        "vi": "Số tháng góp"
+      },
+      "default": 12
+    },
+    {
+      "id": "upfrontFee",
+      "max": 10000000000,
+      "min": 0,
+      "help": {
+        "en": "Fees paid once at the start, such as a processing fee or insurance paid in full.",
+        "vi": "Các khoản phí trả một lần lúc đầu, như phí hồ sơ hoặc bảo hiểm đóng một lần."
+      },
+      "kind": "money",
+      "label": {
+        "en": "One-off fees",
+        "vi": "Phí một lần"
+      },
+      "default": 0
+    },
+    {
+      "id": "monthlyFee",
+      "max": 1000000000,
+      "min": 0,
+      "help": {
+        "en": "Fees added every month, such as loan insurance or a collection fee.",
+        "vi": "Các khoản phí cộng thêm mỗi tháng, như bảo hiểm khoản vay hoặc phí thu hộ."
+      },
+      "kind": "money",
+      "label": {
+        "en": "Monthly fees",
+        "vi": "Phí hằng tháng"
+      },
+      "default": 120000
+    }
+  ],
+  "example": {
+    "inputs": {
+      "months": 12,
+      "cashPrice": 24000000,
+      "monthlyFee": 120000,
+      "upfrontFee": 0,
+      "downPayment": 4800000,
+      "monthlyPayment": 1600000
+    }
+  },
+  "outputs": [
+    {
+      "id": "totalPaid",
+      "label": {
+        "en": "Total paid",
+        "vi": "Tổng số tiền phải trả"
+      },
+      "format": "money",
+      "formula": "downPayment + upfrontFee + (monthlyPayment + monthlyFee) * months"
+    },
+    {
+      "id": "extraCost",
+      "label": {
+        "en": "Extra cost over cash",
+        "vi": "Phần trả thêm so với tiền mặt"
+      },
+      "format": "money",
+      "formula": "totalPaid - cashPrice"
+    },
+    {
+      "id": "extraPercent",
+      "label": {
+        "en": "Extra cost as share of price",
+        "vi": "Phần trả thêm so với giá"
+      },
+      "format": "percent",
+      "formula": "extraCost / cashPrice * 100"
+    },
+    {
+      "id": "amountBorrowed",
+      "label": {
+        "en": "Amount borrowed",
+        "vi": "Số tiền vay"
+      },
+      "format": "money",
+      "formula": "cashPrice - downPayment"
+    },
+    {
+      "id": "effectiveRate",
+      "label": {
+        "en": "Approximate yearly rate",
+        "vi": "Lãi suất năm ước tính"
+      },
+      "format": "percent",
+      "formula": "if(amountBorrowed - upfrontFee > 0, extraCost * 24 * 100 / ((amountBorrowed - upfrontFee) * (months + 1)), 0)"
+    },
+    {
+      "id": "monthlyTotal",
+      "label": {
+        "en": "Paid each month",
+        "vi": "Số tiền trả mỗi tháng"
+      },
+      "format": "money",
+      "formula": "monthlyPayment + monthlyFee"
+    }
+  ],
+  "related": [
+    "/c/electronics",
+    "/c/vehicles",
+    "/c/furniture-appliances",
+    "/vietnamese-price-converter"
+  ],
+  "version": 1,
+  "howItWorks": {
+    "en": "The total paid adds the down payment, the one-off fees, and the monthly instalment plus any monthly fee for every month of the plan. The extra cost is the total paid minus the cash price, and it is also shown as a percentage of the cash price.\n\nThe amount borrowed is the cash price minus the down payment. One-off fees paid at the start reduce the money you really receive on credit, so the rate is worked out on the amount borrowed minus those fees.\n\nThe approximate yearly rate uses the constant-ratio formula: 24 times the extra cost, divided by the net amount borrowed times the number of months plus 1. It gives a quick estimate of the effective annual rate without the month-by-month calculation a lender uses.",
+    "vi": "Tổng số tiền phải trả gồm tiền trả trước, các khoản phí một lần, và tiền góp cộng phí hằng tháng cho mỗi tháng của gói. Phần trả thêm là tổng đó trừ giá trả tiền mặt, và cũng được thể hiện bằng phần trăm so với giá tiền mặt.\n\nSố tiền vay là giá tiền mặt trừ tiền trả trước. Các khoản phí trả ngay lúc đầu làm giảm số tiền bạn thực sự được vay, nên lãi suất được tính trên số tiền vay đã trừ các khoản phí đó.\n\nLãi suất năm ước tính dùng công thức tỷ lệ cố định: 24 nhân phần trả thêm, chia cho số tiền vay thực nhân với số tháng cộng 1. Cách này cho con số ước tính nhanh về lãi suất thực tế mỗi năm, không cần tính từng tháng như bên cho vay."
+  },
+  "description": {
+    "en": "See the total you pay on an instalment plan, the extra cost over paying cash and the approximate yearly interest rate, fees included.",
+    "vi": "Xem tổng số tiền phải trả khi mua trả góp, khoản chênh lệch so với trả tiền mặt và lãi suất năm ước tính, đã tính cả các loại phí."
+  },
+  "limitations": {
+    "en": "The yearly rate is an approximation and can differ from the exact rate, more so over long terms.\nIt assumes every instalment and monthly fee is the same each month.\nLate payment charges and penalties for paying off early are not included.\nIt does not compare against a cash discount unless you type the discounted price as the cash price.",
+    "vi": "Lãi suất năm chỉ là ước tính, có thể lệch so với lãi suất chính xác, nhất là với kỳ hạn dài.\nCông cụ giả định tiền góp và phí hằng tháng không đổi qua các tháng.\nPhí trả chậm và phí tất toán trước hạn không được tính.\nNếu cửa hàng giảm giá khi trả tiền mặt, hãy nhập giá đã giảm làm giá tiền mặt."
+  }
+}

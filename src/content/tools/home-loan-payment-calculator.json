@@ -1,0 +1,349 @@
+{
+  "faqs": [
+    {
+      "a": {
+        "en": "Compare the first month at the promotional rate with the first month at the floating rate. The difference is the extra interest on the balance still owed when the rate switches, at the floating rate you typed.",
+        "vi": "Hãy so sánh tiền trả tháng đầu theo lãi ưu đãi với tháng đầu theo lãi thả nổi. Phần chênh lệch là tiền lãi tăng thêm trên dư nợ còn lại khi chuyển sang mức lãi thả nổi bạn nhập."
+      },
+      "q": {
+        "en": "How much more will I pay when the promotional rate ends?",
+        "vi": "Hết thời gian ưu đãi thì tôi phải trả thêm bao nhiêu?"
+      }
+    },
+    {
+      "a": {
+        "en": "You repay the same amount of principal every month, and interest is charged only on what you still owe. The payment is highest at the start and falls a little each month as the balance shrinks.",
+        "vi": "Mỗi tháng bạn trả một phần gốc bằng nhau, còn tiền lãi chỉ tính trên số tiền còn nợ. Tiền trả cao nhất ở những tháng đầu và giảm dần khi dư nợ giảm."
+      },
+      "q": {
+        "en": "What is the equal principal method?",
+        "vi": "Trả gốc đều, lãi giảm dần là gì?"
+      }
+    },
+    {
+      "a": {
+        "en": "The bank's offer usually states how the floating rate is set, often a reference rate plus a margin. Ask the bank for the current figure, then try a few higher rates to see how the payment changes.",
+        "vi": "Gói vay thường ghi rõ cách tính lãi thả nổi, thường là lãi suất tham chiếu cộng biên độ. Hãy hỏi ngân hàng mức hiện tại, rồi thử thêm vài mức cao hơn để xem tiền trả thay đổi ra sao."
+      },
+      "q": {
+        "en": "What floating rate should I type?",
+        "vi": "Tôi nên nhập mức lãi thả nổi nào?"
+      }
+    },
+    {
+      "a": {
+        "en": "No. The figures cover only principal and interest. Valuation fees, insurance and early repayment penalties come on top and differ between banks.",
+        "vi": "Không. Các con số chỉ gồm tiền gốc và tiền lãi. Phí thẩm định, bảo hiểm và phí trả nợ trước hạn là các khoản riêng, khác nhau giữa các ngân hàng."
+      },
+      "q": {
+        "en": "Are bank fees and loan insurance included?",
+        "vi": "Công cụ có tính phí ngân hàng và bảo hiểm khoản vay không?"
+      }
+    },
+    {
+      "a": {
+        "en": "No. The calculator runs in your browser, and nothing you type is stored or sent anywhere.",
+        "vi": "Không. Công cụ chạy trên trình duyệt của bạn, và những gì bạn nhập không được lưu hay gửi đi đâu."
+      },
+      "q": {
+        "en": "Is anything I type stored?",
+        "vi": "Những gì tôi nhập có được lưu không?"
+      }
+    }
+  ],
+  "slug": "home-loan-payment-calculator",
+  "intro": {
+    "en": "The loan is the property price minus the down payment, and each month you repay the loan divided by the term plus interest on what is still owed, at the promotional rate first and the floating rate after. Enter the price, your down payment, the term and the rates from the bank's offer to see whether the payment stays affordable once the promotion ends.",
+    "vi": "Khoản vay bằng giá nhà trừ số tiền trả trước, và mỗi tháng bạn trả phần gốc bằng khoản vay chia cho số tháng vay, cộng tiền lãi trên dư nợ còn lại, tính theo lãi ưu đãi trước rồi đến lãi thả nổi. Nhập giá nhà, tỷ lệ trả trước, thời hạn vay và các mức lãi suất trong gói vay của ngân hàng để xem bạn còn kham nổi tiền trả hằng tháng khi hết ưu đãi hay không."
+  },
+  "notes": [
+    {
+      "text": {
+        "en": "The first payment at the floating rate is higher than the first payment at the promotional rate.",
+        "vi": "Tiền trả tháng đầu theo lãi thả nổi cao hơn tháng đầu theo lãi ưu đãi."
+      },
+      "when": "promoPayment > 0 and floatPayment > promoPayment"
+    },
+    {
+      "text": {
+        "en": "The promotional period covers the whole term, so the floating rate is never used.",
+        "vi": "Thời gian ưu đãi kéo dài hết thời hạn vay, nên lãi thả nổi không được áp dụng."
+      },
+      "when": "promoMonths >= termMonths"
+    },
+    {
+      "text": {
+        "en": "The floating rate you typed is lower than the promotional rate.",
+        "vi": "Lãi thả nổi bạn nhập đang thấp hơn lãi ưu đãi."
+      },
+      "when": "floatRate < promoRate"
+    },
+    {
+      "text": {
+        "en": "The down payment covers the whole price, so there is nothing to borrow.",
+        "vi": "Số tiền trả trước đã bằng giá nhà, nên không cần vay."
+      },
+      "when": "loanAmount == 0"
+    },
+    {
+      "text": {
+        "en": "Payments fall a little each month as the balance shrinks; the figures shown are the first month of each period.",
+        "vi": "Tiền trả giảm dần mỗi tháng khi dư nợ giảm; số hiển thị là tháng đầu tiên của mỗi giai đoạn."
+      },
+      "when": "loanAmount > 0"
+    }
+  ],
+  "tests": [
+    {
+      "expect": {
+        "totalPaid": 4914665000,
+        "loanAmount": 2100000000,
+        "downPayment": 900000000,
+        "floatPayment": 25480000,
+        "promoPayment": 19250000,
+        "totalInterest": 2814665000
+      },
+      "inputs": {
+        "price": 3000000000,
+        "downPct": 30,
+        "floatRate": 11,
+        "promoRate": 7,
+        "termMonths": 300,
+        "promoMonths": 12
+      }
+    },
+    {
+      "expect": {
+        "loanAmount": 1600000000,
+        "downPayment": 400000000,
+        "floatPayment": 20000000,
+        "promoPayment": 0,
+        "totalInterest": 1606666667
+      },
+      "inputs": {
+        "price": 2000000000,
+        "downPct": 20,
+        "floatRate": 10,
+        "promoRate": 6,
+        "termMonths": 240,
+        "promoMonths": 0
+      }
+    },
+    {
+      "expect": {
+        "totalPaid": 562500000,
+        "loanAmount": 500000000,
+        "floatPayment": 0,
+        "promoPayment": 25833333,
+        "totalInterest": 62500000
+      },
+      "inputs": {
+        "price": 1000000000,
+        "downPct": 50,
+        "floatRate": 15,
+        "promoRate": 12,
+        "termMonths": 24,
+        "promoMonths": 36
+      }
+    },
+    {
+      "expect": {
+        "totalPaid": 0,
+        "loanAmount": 0,
+        "downPayment": 1500000000,
+        "floatPayment": 0,
+        "promoPayment": 0,
+        "totalInterest": 0
+      },
+      "inputs": {
+        "price": 1500000000,
+        "downPct": 100,
+        "floatRate": 10,
+        "promoRate": 8,
+        "termMonths": 120,
+        "promoMonths": 6
+      }
+    }
+  ],
+  "title": {
+    "en": "Home loan payment calculator",
+    "vi": "Tính tiền trả góp vay mua nhà"
+  },
+  "inputs": [
+    {
+      "id": "price",
+      "max": 100000000000,
+      "min": 100000000,
+      "help": {
+        "en": "The full price of the apartment or house, in đồng.",
+        "vi": "Giá mua căn hộ hoặc căn nhà, tính bằng đồng."
+      },
+      "kind": "money",
+      "label": {
+        "en": "Property price",
+        "vi": "Giá nhà"
+      },
+      "default": 3000000000
+    },
+    {
+      "id": "downPct",
+      "max": 100,
+      "min": 0,
+      "help": {
+        "en": "The share of the price you pay yourself, as a percentage.",
+        "vi": "Phần giá nhà bạn tự trả bằng tiền của mình, tính theo phần trăm."
+      },
+      "kind": "percent",
+      "label": {
+        "en": "Down payment",
+        "vi": "Tỷ lệ trả trước"
+      },
+      "default": 30
+    },
+    {
+      "id": "termMonths",
+      "max": 420,
+      "min": 12,
+      "help": {
+        "en": "How many months you repay over, for example 300 for 25 years.",
+        "vi": "Số tháng trả nợ, ví dụ 300 tháng là 25 năm."
+      },
+      "kind": "months",
+      "label": {
+        "en": "Loan term",
+        "vi": "Thời hạn vay"
+      },
+      "default": 300
+    },
+    {
+      "id": "promoMonths",
+      "max": 120,
+      "min": 0,
+      "help": {
+        "en": "How many months the fixed promotional rate lasts. Type 0 if there is none.",
+        "vi": "Số tháng áp dụng lãi suất ưu đãi cố định. Nhập 0 nếu không có ưu đãi."
+      },
+      "kind": "months",
+      "label": {
+        "en": "Promotional period",
+        "vi": "Thời gian ưu đãi"
+      },
+      "default": 12
+    },
+    {
+      "id": "promoRate",
+      "max": 30,
+      "min": 0,
+      "help": {
+        "en": "The fixed yearly rate during the promotional period, as in the offer.",
+        "vi": "Lãi suất cố định theo năm trong thời gian ưu đãi, theo gói vay."
+      },
+      "kind": "percent",
+      "label": {
+        "en": "Promotional rate a year",
+        "vi": "Lãi suất ưu đãi mỗi năm"
+      },
+      "default": 7
+    },
+    {
+      "id": "floatRate",
+      "max": 30,
+      "min": 0,
+      "help": {
+        "en": "The yearly rate you expect after the promotion ends.",
+        "vi": "Lãi suất theo năm bạn dự kiến phải trả sau khi hết ưu đãi."
+      },
+      "kind": "percent",
+      "label": {
+        "en": "Expected floating rate a year",
+        "vi": "Lãi thả nổi dự kiến mỗi năm"
+      },
+      "default": 11
+    }
+  ],
+  "example": {
+    "inputs": {
+      "price": 3000000000,
+      "downPct": 30,
+      "floatRate": 11,
+      "promoRate": 7,
+      "termMonths": 300,
+      "promoMonths": 12
+    }
+  },
+  "outputs": [
+    {
+      "id": "downPayment",
+      "label": {
+        "en": "Down payment",
+        "vi": "Số tiền trả trước"
+      },
+      "format": "money",
+      "formula": "price * downPct / 100"
+    },
+    {
+      "id": "loanAmount",
+      "label": {
+        "en": "Loan amount",
+        "vi": "Số tiền vay"
+      },
+      "format": "money",
+      "formula": "price - downPayment"
+    },
+    {
+      "id": "promoPayment",
+      "label": {
+        "en": "First month at the promotional rate",
+        "vi": "Tháng đầu với lãi ưu đãi"
+      },
+      "format": "money",
+      "formula": "if(termMonths > 0 and promoMonths > 0, loanAmount / termMonths + loanAmount * promoRate / 100 / 12, 0)"
+    },
+    {
+      "id": "floatPayment",
+      "label": {
+        "en": "First month at the floating rate",
+        "vi": "Tháng đầu với lãi thả nổi"
+      },
+      "format": "money",
+      "formula": "if(termMonths > 0 and promoMonths < termMonths, loanAmount / termMonths + loanAmount * (termMonths - promoMonths) / termMonths * floatRate / 100 / 12, 0)"
+    },
+    {
+      "id": "totalInterest",
+      "label": {
+        "en": "Total interest",
+        "vi": "Tổng tiền lãi"
+      },
+      "format": "money",
+      "formula": "if(termMonths > 0, loanAmount / termMonths * (min(promoMonths, termMonths) * (2 * termMonths - min(promoMonths, termMonths) + 1) / 2 * promoRate + max(termMonths - promoMonths, 0) * (max(termMonths - promoMonths, 0) + 1) / 2 * floatRate) / 100 / 12, 0)"
+    },
+    {
+      "id": "totalPaid",
+      "label": {
+        "en": "Total repaid to the bank",
+        "vi": "Tổng số tiền trả ngân hàng"
+      },
+      "format": "money",
+      "formula": "loanAmount + totalInterest"
+    }
+  ],
+  "related": [
+    "/tools",
+    "/rent-affordability-calculator",
+    "/vietnamese-price-converter",
+    "/furnishing-a-home-in-vietnam"
+  ],
+  "version": 1,
+  "howItWorks": {
+    "en": "The down payment is the price times your down payment percentage, and the loan is the rest. The calculator uses the equal principal method: the loan is split into equal monthly slices of principal, and interest each month is charged on the balance still owed.\n\nDuring the promotional period, interest is the balance times the promotional rate divided by 12. After it ends, the balance left is charged at the floating rate you type. The payments shown are those of the first month of each period, which are the highest in that period.\n\nTotal interest adds up the interest of every month of the term, at the promotional rate for the promotional months and at the floating rate for the rest.",
+    "vi": "Số tiền trả trước bằng giá nhà nhân tỷ lệ trả trước, phần còn lại là khoản vay. Công cụ dùng cách trả gốc đều, lãi giảm dần: khoản vay được chia thành các phần gốc bằng nhau mỗi tháng, còn tiền lãi mỗi tháng tính trên dư nợ còn lại.\n\nTrong thời gian ưu đãi, tiền lãi bằng dư nợ nhân lãi suất ưu đãi chia 12. Khi hết ưu đãi, dư nợ còn lại được tính theo mức lãi thả nổi bạn nhập. Số tiền hiển thị là tiền trả của tháng đầu tiên mỗi giai đoạn, cũng là tháng trả nhiều nhất trong giai đoạn đó.\n\nTổng tiền lãi là lãi của tất cả các tháng trong thời hạn vay, tính theo lãi ưu đãi cho các tháng ưu đãi và theo lãi thả nổi cho những tháng còn lại."
+  },
+  "description": {
+    "en": "See the down payment, loan, monthly repayment at the promotional rate and after the switch to the floating rate, and the total interest on a home loan.",
+    "vi": "Xem số tiền trả trước, khoản vay, tiền trả hằng tháng trong thời gian ưu đãi và sau khi chuyển sang lãi thả nổi, cùng tổng tiền lãi."
+  },
+  "limitations": {
+    "en": "It assumes equal principal each month; a loan with equal total instalments gives different payments.\nThe floating rate is held fixed for the rest of the term, while a real one changes over time.\nFees, insurance and early repayment penalties are not included.",
+    "vi": "Công cụ giả định trả gốc đều mỗi tháng; khoản vay trả góp đều cả gốc lẫn lãi sẽ cho số tiền khác.\nLãi thả nổi được giữ cố định đến hết hạn vay, trong khi thực tế lãi suất thay đổi theo thời gian.\nChưa tính phí, bảo hiểm khoản vay và phí trả nợ trước hạn."
+  }
+}

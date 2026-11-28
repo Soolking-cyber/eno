@@ -1,0 +1,355 @@
+{
+  "faqs": [
+    {
+      "a": {
+        "en": "A common way is to split the rent by floor area: each person pays their bedroom's square metres divided by the total bedroom area. A 16 m² room in a home with 40 m² of bedrooms pays 40% of the rent. This calculator does that and lets you add an extra for a private bathroom or balcony.",
+        "vi": "Một cách phổ biến là chia theo diện tích: mỗi người trả theo số mét vuông phòng mình chia cho tổng diện tích các phòng ngủ. Phòng 16 m² trong căn có tổng 40 m² phòng ngủ trả 40% tiền thuê. Công cụ này tính theo cách đó và cho phép cộng thêm cho phòng tắm riêng hoặc ban công."
+      },
+      "q": {
+        "en": "How do you split rent fairly when bedrooms are different sizes?",
+        "vi": "Chia tiền thuê thế nào cho công bằng khi các phòng rộng hẹp khác nhau?"
+      }
+    },
+    {
+      "a": {
+        "en": "There is no fixed figure; it is whatever the roommates agree. One way is to compare the rent of similar rooms with and without a private bathroom in listings near you. Type the agreed amount as the extra for Room 1.",
+        "vi": "Không có con số cố định, đó là mức mọi người thỏa thuận với nhau. Bạn có thể so sánh giá thuê các phòng tương tự có và không có phòng tắm riêng quanh khu vực. Nhập số tiền đã thống nhất vào ô Phòng 1 trả thêm."
+      },
+      "q": {
+        "en": "How much extra should a room with a private bathroom pay?",
+        "vi": "Phòng có phòng tắm riêng nên trả thêm bao nhiêu?"
+      }
+    },
+    {
+      "a": {
+        "en": "Electricity, water and internet are used by people, not by square metres, so each room in use pays the same part. If one person uses much more, such as running an air conditioner all day, you can agree to adjust the bills before typing them.",
+        "vi": "Điện, nước và internet do người dùng, không phụ thuộc diện tích, nên mỗi phòng đang dùng trả phần bằng nhau. Nếu có người dùng nhiều hơn hẳn, chẳng hạn bật điều hòa cả ngày, mọi người có thể thỏa thuận điều chỉnh trước khi nhập."
+      },
+      "q": {
+        "en": "Why are the bills split equally and not by room size?",
+        "vi": "Sao phí chung chia đều chứ không theo diện tích?"
+      }
+    },
+    {
+      "a": {
+        "en": "No. The calculator runs in your browser, and nothing you type is stored or sent anywhere.",
+        "vi": "Không. Công cụ chạy trên trình duyệt của bạn, và những gì bạn nhập không được lưu hay gửi đi đâu."
+      },
+      "q": {
+        "en": "Is anything I type stored?",
+        "vi": "Những gì tôi nhập có được lưu không?"
+      }
+    }
+  ],
+  "slug": "roommate-rent-split-calculator",
+  "intro": {
+    "en": "Each room's monthly share is any extra agreed for a private bathroom or balcony, plus the rest of the rent split by that room's part of the total bedroom floor area, plus an equal part of the shared bills. Type the rent, the bills and the floor area of each bedroom, leave unused rooms at 0, and see what every roommate pays a month.",
+    "vi": "Phần mỗi phòng trả hằng tháng bằng khoản cộng thêm cho phòng tắm riêng hoặc ban công (nếu có), cộng phần tiền thuê còn lại chia theo tỉ lệ diện tích phòng ngủ, cộng phần chia đều các khoản phí chung. Nhập tiền thuê, tổng phí và diện tích từng phòng ngủ, để 0 với phòng không dùng, rồi xem mỗi người trả bao nhiêu mỗi tháng."
+  },
+  "notes": [
+    {
+      "text": {
+        "en": "The extra is more than the whole rent, so Room 1 pays all of the rent and the other rooms pay only their part of the bills.",
+        "vi": "Khoản cộng thêm lớn hơn cả tiền thuê, nên Phòng 1 trả toàn bộ tiền thuê và các phòng khác chỉ trả phần phí chung."
+      },
+      "when": "extra > rent"
+    },
+    {
+      "text": {
+        "en": "No extra is set, so the rent is split by floor area alone.",
+        "vi": "Không có khoản cộng thêm, nên tiền thuê được chia hoàn toàn theo diện tích."
+      },
+      "when": "extra == 0"
+    }
+  ],
+  "tests": [
+    {
+      "expect": {
+        "room1": 6066666.67,
+        "room2": 3966666.67,
+        "room3": 3966666.67,
+        "room4": 0,
+        "room5": 0,
+        "total": 14000000
+      },
+      "inputs": {
+        "rent": 12000000,
+        "area1": 16,
+        "area2": 12,
+        "area3": 12,
+        "area4": 0,
+        "area5": 0,
+        "bills": 2000000,
+        "extra": 1000000
+      }
+    },
+    {
+      "expect": {
+        "room1": 5500000,
+        "room2": 5500000,
+        "room3": 0,
+        "total": 11000000
+      },
+      "inputs": {
+        "rent": 10000000,
+        "area1": 10,
+        "area2": 10,
+        "area3": 0,
+        "area4": 0,
+        "area5": 0,
+        "bills": 1000000,
+        "extra": 0
+      }
+    },
+    {
+      "expect": {
+        "room1": 7285714.29,
+        "room2": 4464285.71,
+        "room3": 4464285.71,
+        "room4": 3142857.14,
+        "room5": 3142857.14,
+        "total": 22500000
+      },
+      "inputs": {
+        "rent": 20000000,
+        "area1": 20,
+        "area2": 15,
+        "area3": 15,
+        "area4": 10,
+        "area5": 10,
+        "bills": 2500000,
+        "extra": 1500000
+      }
+    },
+    {
+      "expect": {
+        "room1": 1000000,
+        "room2": 0,
+        "total": 1000000
+      },
+      "inputs": {
+        "rent": 1000000,
+        "area1": 10,
+        "area2": 10,
+        "area3": 0,
+        "area4": 0,
+        "area5": 0,
+        "bills": 0,
+        "extra": 2000000
+      }
+    }
+  ],
+  "title": {
+    "en": "Roommate rent split calculator",
+    "vi": "Tính chia tiền thuê nhà ở ghép"
+  },
+  "inputs": [
+    {
+      "id": "rent",
+      "max": 10000000000,
+      "min": 100000,
+      "help": {
+        "en": "The rent in the contract, for the whole home.",
+        "vi": "Tiền thuê ghi trong hợp đồng, cho cả căn."
+      },
+      "kind": "money",
+      "label": {
+        "en": "Monthly rent for the whole home",
+        "vi": "Tiền thuê cả căn mỗi tháng"
+      },
+      "default": 12000000
+    },
+    {
+      "id": "bills",
+      "max": 1000000000,
+      "min": 0,
+      "help": {
+        "en": "Electricity, water, internet, management and parking fees, added up.",
+        "vi": "Điện, nước, internet, phí quản lý và gửi xe, cộng lại."
+      },
+      "kind": "money",
+      "label": {
+        "en": "Monthly shared bills",
+        "vi": "Tổng phí chung mỗi tháng"
+      },
+      "default": 2000000
+    },
+    {
+      "id": "extra",
+      "max": 1000000000,
+      "min": 0,
+      "help": {
+        "en": "What you agree Room 1 pays on top for a private bathroom or balcony. Enter 0 if no room has one.",
+        "vi": "Số tiền mọi người thỏa thuận Phòng 1 trả thêm vì có phòng tắm riêng hoặc ban công. Nhập 0 nếu không có."
+      },
+      "kind": "money",
+      "label": {
+        "en": "Extra for Room 1 a month",
+        "vi": "Phòng 1 trả thêm mỗi tháng"
+      },
+      "default": 1000000
+    },
+    {
+      "id": "area1",
+      "max": 200,
+      "min": 1,
+      "help": {
+        "en": "The bedroom with the private bathroom or balcony, if any.",
+        "vi": "Phòng ngủ có phòng tắm riêng hoặc ban công, nếu có."
+      },
+      "kind": "number",
+      "label": {
+        "en": "Room 1 floor area (m²)",
+        "vi": "Diện tích Phòng 1 (m²)"
+      },
+      "default": 16
+    },
+    {
+      "id": "area2",
+      "max": 200,
+      "min": 1,
+      "help": {
+        "en": "The second bedroom in use.",
+        "vi": "Phòng ngủ thứ hai đang dùng."
+      },
+      "kind": "number",
+      "label": {
+        "en": "Room 2 floor area (m²)",
+        "vi": "Diện tích Phòng 2 (m²)"
+      },
+      "default": 12
+    },
+    {
+      "id": "area3",
+      "max": 200,
+      "min": 0,
+      "help": {
+        "en": "Enter 0 if there is no third roommate.",
+        "vi": "Nhập 0 nếu không có người thứ ba."
+      },
+      "kind": "number",
+      "label": {
+        "en": "Room 3 floor area (m²)",
+        "vi": "Diện tích Phòng 3 (m²)"
+      },
+      "default": 12
+    },
+    {
+      "id": "area4",
+      "max": 200,
+      "min": 0,
+      "help": {
+        "en": "Enter 0 if there is no fourth roommate.",
+        "vi": "Nhập 0 nếu không có người thứ tư."
+      },
+      "kind": "number",
+      "label": {
+        "en": "Room 4 floor area (m²)",
+        "vi": "Diện tích Phòng 4 (m²)"
+      },
+      "default": 0
+    },
+    {
+      "id": "area5",
+      "max": 200,
+      "min": 0,
+      "help": {
+        "en": "Enter 0 if there is no fifth roommate.",
+        "vi": "Nhập 0 nếu không có người thứ năm."
+      },
+      "kind": "number",
+      "label": {
+        "en": "Room 5 floor area (m²)",
+        "vi": "Diện tích Phòng 5 (m²)"
+      },
+      "default": 0
+    }
+  ],
+  "example": {
+    "inputs": {
+      "rent": 12000000,
+      "area1": 16,
+      "area2": 12,
+      "area3": 12,
+      "area4": 0,
+      "area5": 0,
+      "bills": 2000000,
+      "extra": 1000000
+    }
+  },
+  "outputs": [
+    {
+      "id": "room1",
+      "label": {
+        "en": "Room 1 pays a month",
+        "vi": "Phòng 1 trả mỗi tháng"
+      },
+      "format": "money",
+      "formula": "min(extra, rent) + (rent - min(extra, rent)) * area1 / (area1 + area2 + area3 + area4 + area5) + bills / (2 + if(area3 > 0, 1, 0) + if(area4 > 0, 1, 0) + if(area5 > 0, 1, 0))"
+    },
+    {
+      "id": "room2",
+      "label": {
+        "en": "Room 2 pays a month",
+        "vi": "Phòng 2 trả mỗi tháng"
+      },
+      "format": "money",
+      "formula": "(rent - min(extra, rent)) * area2 / (area1 + area2 + area3 + area4 + area5) + bills / (2 + if(area3 > 0, 1, 0) + if(area4 > 0, 1, 0) + if(area5 > 0, 1, 0))"
+    },
+    {
+      "id": "room3",
+      "label": {
+        "en": "Room 3 pays a month",
+        "vi": "Phòng 3 trả mỗi tháng"
+      },
+      "format": "money",
+      "formula": "if(area3 > 0, (rent - min(extra, rent)) * area3 / (area1 + area2 + area3 + area4 + area5) + bills / (2 + if(area3 > 0, 1, 0) + if(area4 > 0, 1, 0) + if(area5 > 0, 1, 0)), 0)"
+    },
+    {
+      "id": "room4",
+      "label": {
+        "en": "Room 4 pays a month",
+        "vi": "Phòng 4 trả mỗi tháng"
+      },
+      "format": "money",
+      "formula": "if(area4 > 0, (rent - min(extra, rent)) * area4 / (area1 + area2 + area3 + area4 + area5) + bills / (2 + if(area3 > 0, 1, 0) + if(area4 > 0, 1, 0) + if(area5 > 0, 1, 0)), 0)"
+    },
+    {
+      "id": "room5",
+      "label": {
+        "en": "Room 5 pays a month",
+        "vi": "Phòng 5 trả mỗi tháng"
+      },
+      "format": "money",
+      "formula": "if(area5 > 0, (rent - min(extra, rent)) * area5 / (area1 + area2 + area3 + area4 + area5) + bills / (2 + if(area3 > 0, 1, 0) + if(area4 > 0, 1, 0) + if(area5 > 0, 1, 0)), 0)"
+    },
+    {
+      "id": "total",
+      "label": {
+        "en": "All shares added up",
+        "vi": "Tổng các phần cộng lại"
+      },
+      "format": "money",
+      "formula": "room1 + room2 + room3 + room4 + room5"
+    }
+  ],
+  "related": [
+    "/rent-affordability-calculator",
+    "/move-in-cost-calculator",
+    "/c/rentals",
+    "/renting-an-apartment-vietnam-foreigner"
+  ],
+  "version": 1,
+  "howItWorks": {
+    "en": "First, the extra you agree for the room with a private bathroom or balcony is charged to Room 1 and taken off the rent. If the extra is more than the whole rent, Room 1 simply pays the whole rent.\n\nThe rest of the rent is split by floor area: each room pays its square metres divided by the total square metres of all bedrooms in use. A room of 16 m² in a home with 40 m² of bedrooms pays 40% of that remaining rent.\n\nThe bills are split equally between the rooms in use. Rooms 1 and 2 always count; Rooms 3, 4 and 5 count only when their area is more than 0.\n\nThe last line adds every share together, so you can check it matches the rent plus the bills.",
+    "vi": "Trước hết, khoản cộng thêm mà mọi người thỏa thuận cho phòng có phòng tắm riêng hoặc ban công được tính cho Phòng 1 và trừ khỏi tiền thuê. Nếu khoản này lớn hơn cả tiền thuê, Phòng 1 chỉ trả đúng toàn bộ tiền thuê.\n\nPhần tiền thuê còn lại được chia theo diện tích: mỗi phòng trả theo số mét vuông của mình chia cho tổng diện tích các phòng ngủ đang dùng. Phòng 16 m² trong căn có tổng 40 m² phòng ngủ sẽ trả 40% phần tiền thuê còn lại.\n\nCác khoản phí chung được chia đều cho các phòng đang dùng. Phòng 1 và Phòng 2 luôn được tính; Phòng 3, 4 và 5 chỉ được tính khi diện tích lớn hơn 0.\n\nDòng cuối cộng tất cả các phần lại để bạn đối chiếu với tiền thuê cộng tổng phí."
+  },
+  "description": {
+    "en": "Split a shared home's rent by bedroom floor area, add any private bathroom or balcony extra, and share the bills equally between two to five roommates.",
+    "vi": "Chia tiền thuê nhà ở ghép theo diện tích phòng ngủ, tính thêm phần phòng tắm riêng hay ban công, và chia đều điện nước cho 2 đến 5 người."
+  },
+  "limitations": {
+    "en": "Only Room 1 can carry an extra for a private bathroom or balcony.\nShared spaces such as the kitchen and living room are paid in proportion to bedroom area, not equally.\nBills are split per room, so a couple sharing one room pays one share.\nBills that change month to month are an estimate: use an average.",
+    "vi": "Chỉ Phòng 1 được tính khoản cộng thêm cho phòng tắm riêng hoặc ban công.\nKhông gian chung như bếp và phòng khách được tính theo tỉ lệ diện tích phòng ngủ, không chia đều.\nPhí được chia theo phòng, nên hai người ở chung một phòng chỉ trả một phần.\nCác khoản phí thay đổi theo tháng chỉ là ước tính: hãy dùng mức trung bình."
+  }
+}
