@@ -5,6 +5,9 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { logError } from '@/lib/log'
 import { PARTNER_RETURN_POLICIES, type PartnerReturnPolicy } from '@/lib/partner-return-policies'
 import { TAXONOMY } from '@/lib/taxonomy'
+import type { BankPeriod } from '@/lib/ads/bank-periods'
+import { adProduct, adTarget, parseAdId } from './ad-item'
+import { CHECKOUT_VERSION, UCP_CHECKOUT } from './agent'
 
 /**
  * ── UNIVERSAL COMMERCE PROTOCOL: eno.vn's CATALOG (owner, 2026-11-27: "build ucp endpoints … catalog partner shops") ──
@@ -52,6 +55,8 @@ export function ucpProfile() {
       capabilities: {
         [UCP_SEARCH]: [{ version: UCP_VERSION, spec: `${SPEC}/specification/shopping/catalog/search`, schema: `${SPEC}/schemas/shopping/catalog_search.json` }],
         [UCP_LOOKUP]: [{ version: UCP_VERSION, spec: `${SPEC}/specification/shopping/catalog/lookup`, schema: `${SPEC}/schemas/shopping/catalog_lookup.json` }],
+        // eno.vn's own ads only (src/lib/ucp/checkout.ts): paid on eno.vn by VietQR, so no payment handler is declared.
+        [UCP_CHECKOUT]: [{ version: CHECKOUT_VERSION, spec: `${SPEC}/specification/shopping/checkout`, schema: `${SPEC}/schemas/shopping/checkout.json` }],
       },
       payment_handlers: {},
     },
@@ -246,13 +251,26 @@ export async function ucpLookup(body: unknown) {
   if (!ids.length) throw new UcpRequestError('invalid_request', '`ids` must list at least one product or variant id.')
   if (ids.length > LOOKUP_MAX) throw new UcpRequestError('invalid_request', `At most ${LOOKUP_MAX} ids per lookup.`)
   const unique = [...new Set(ids)]
-  const found = await Promise.all(unique.map(async (id) => [id, await readOne(id)] as const))
+  // eno.vn's own ad products (`ad:<listingId>[:period]`, ad-item.ts): one eligibility read per listing, whatever ids name it.
+  const adIds = unique.filter((id) => parseAdId(id))
+  const adGroups = new Map<string, Map<BankPeriod, { id: string; match: string }[]>>()
+  for (const id of adIds) {
+    const a = parseAdId(id)!
+    const g = adGroups.get(a.listingId) ?? new Map<BankPeriod, { id: string; match: string }[]>()
+    const period = a.period ?? 'week'
+    g.set(period, [...(g.get(period) ?? []), { id, match: a.period ? 'exact' : 'featured' }])
+    adGroups.set(a.listingId, g)
+  }
+  const adHits = await Promise.all([...adGroups].map(async ([listingId, g]) => [g, await adTarget(listingId)] as const))
+  const found = await Promise.all(unique.filter((id) => !parseAdId(id)).map(async (id) => [id, await readOne(id)] as const))
   const hits = found.filter(([, r]) => r)
   const partners = await partnerPolicies(hits.map(([, r]) => r!.id))
   const lang = langOf(req)
   const products = hits.map(([id, r]) => toProduct(r!, [{ id, match: 'exact' }], partners.get(r!.id), lang))
   const policies = returnPolicies(hits.map(([, r], i) => ({ path: `$.products[${i}]`, policy: partners.get(r!.id) })), lang)
-  const missing = found.filter(([, r]) => !r).map(([id]) => id)
+  for (const [g, t] of adHits) if (t) products.push(adProduct(t, lang, g) as unknown as (typeof products)[number])
+  const adMissing = adHits.filter(([, t]) => !t).flatMap(([g]) => [...g.values()].flat().map((i) => i.id))
+  const missing = [...found.filter(([, r]) => !r).map(([id]) => id), ...adMissing]
   return {
     ucp: meta(UCP_LOOKUP),
     products,
@@ -266,6 +284,12 @@ export async function ucpProduct(body: unknown): Promise<{ status: number; body:
   const req = isRecord(body) ? body : {}
   const id = typeof req.id === 'string' ? req.id.trim() : ''
   if (!id) throw new UcpRequestError('invalid_request', '`id` is required.')
+  const ad = parseAdId(id)
+  if (ad) {
+    const t = await adTarget(ad.listingId)
+    if (!t) return { status: 200, body: ucpError(UCP_LOOKUP, 'not_found', `No live listing on eno.vn can carry the ad ${id}.`) }
+    return { status: 200, body: { ucp: meta(UCP_LOOKUP), product: adProduct(t, langOf(req)) } }
+  }
   const r = await readOne(id)
   // A business outcome, not a transport failure: HTTP 200 with ucp.status "error" (the catalog REST binding's rule).
   if (!r) return { status: 200, body: ucpError(UCP_LOOKUP, 'not_found', `No live listing for sale has the id ${id}.`) }

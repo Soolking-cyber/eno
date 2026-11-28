@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const h = vi.hoisted(() => ({ searchArgs: [] as unknown[], search: vi.fn(), detail: vi.fn(), findMany: vi.fn() }))
+const h = vi.hoisted(() => ({ searchArgs: [] as unknown[], search: vi.fn(), detail: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), adCheck: vi.fn() }))
 
-vi.mock('@/lib/db', () => ({ db: { listing: { findMany: h.findMany } } }))
+vi.mock('@/lib/db', () => ({ db: { listing: { findMany: h.findMany, findUnique: h.findUnique } } }))
+vi.mock('@/lib/ads/book', () => ({ checkAdListing: h.adCheck }))
 vi.mock('@/lib/log', () => ({ logError: vi.fn() }))
 vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: object) => ({ AND: [w, { scope: 'marketplace' }] }) }))
 
@@ -37,12 +38,13 @@ const CPS = 'cmt78nvif0000gpq48kvzmxjw' // CellphoneS
 const HAGA = 'ed20fff4-0ba5-4ee4-a032-743d9c7cdd4d'
 
 describe('UCP profile', () => {
-  it('declares the REST shopping service, the two catalog capabilities and no payment handlers (2026-08-25)', () => {
+  it('declares the REST shopping service, the catalog capabilities and checkout, and no payment handlers (2026-08-25)', () => {
     const p = ucpProfile()
     expect(p.ucp.version).toBe('2026-08-25')
     expect(p.ucp.services['dev.ucp.shopping'][0]).toMatchObject({ transport: 'rest', schema: 'https://ucp.dev/2026-08-25/services/shopping/rest.openapi.json' })
     expect(p.ucp.services['dev.ucp.shopping'][0].endpoint).toMatch(/\/api\/ucp$/)
-    expect(Object.keys(p.ucp.capabilities).sort()).toEqual([UCP_LOOKUP, UCP_SEARCH].sort())
+    expect(Object.keys(p.ucp.capabilities).sort()).toEqual(['dev.ucp.shopping.checkout', UCP_LOOKUP, UCP_SEARCH].sort())
+    expect(p.ucp.capabilities['dev.ucp.shopping.checkout'][0]).toMatchObject({ version: '2026-08-25', schema: 'https://ucp.dev/2026-08-25/schemas/shopping/checkout.json' })
     expect(p.ucp.payment_handlers).toEqual({})
   })
 })
@@ -125,6 +127,47 @@ describe("a partner shop's own return policy (owner 2026-11-28)", () => {
     const out = await ucpSearch({})
     expect(out.products.map((p) => p.id)).toEqual(['a'])
     expect(out).not.toHaveProperty('policies')
+  })
+})
+
+describe("eno.vn's own ad product (ad:<listingId>)", () => {
+  const live = (id: string) => ({ listing: { ...row(id), listing_type: 'rent', images: [`https://eno.vn/img/${id}.webp`], status: 'active', description: 'x' } })
+
+  it('lookup: the product id features the week, a variant id is exact; only variants a request named, each with inputs', async () => {
+    h.detail.mockImplementation(async ({ id }: { id: string }) => live(id))
+    h.findUnique.mockResolvedValue({ sellerId: 's1' })
+    h.adCheck.mockResolvedValue({ ok: true })
+    const out = await ucpLookup({ ids: ['ad:L1', 'ad:L1:quarter'] })
+    expect(out.products).toHaveLength(1)
+    const p = out.products[0] as unknown as { id: string; variants: { id: string; price: { amount: number }; inputs: unknown[] }[] }
+    expect(p.id).toBe('ad:L1')
+    expect(p.variants.map((v) => [v.id, v.price.amount, v.inputs])).toEqual([
+      ['ad:L1:week', 99_000, [{ id: 'ad:L1', match: 'featured' }]],
+      ['ad:L1:quarter', 899_000, [{ id: 'ad:L1:quarter', match: 'exact' }]],
+    ])
+    // One eligibility read for the listing, with its own shop.
+    expect(h.adCheck).toHaveBeenCalledTimes(1)
+    expect(h.adCheck).toHaveBeenCalledWith('L1', 's1')
+  })
+
+  it('a listing eno.vn may not show or advertise is not_found, and its title is never printed', async () => {
+    h.detail.mockImplementation(async (_: unknown, E: new (c: string, m: string) => Error) => { throw new E('not_found', 'x') })
+    const hidden = await ucpLookup({ ids: ['ad:DESK:week'] })
+    expect(hidden.products).toEqual([])
+    expect(hidden.messages).toEqual([{ type: 'info', code: 'not_found', content: 'ad:DESK:week' }])
+    h.detail.mockImplementation(async ({ id }: { id: string }) => live(id))
+    h.findUnique.mockResolvedValue({ sellerId: 's1' })
+    h.adCheck.mockResolvedValue({ ok: false, status: 403, code: 'ads_not_allowed' })
+    expect((await ucpProduct({ id: 'ad:VISA' })).body).toMatchObject({ ucp: { status: 'error' }, messages: [{ code: 'not_found' }] })
+  })
+
+  it('catalog/product returns all three periods', async () => {
+    h.detail.mockImplementation(async ({ id }: { id: string }) => live(id))
+    h.findUnique.mockResolvedValue({ sellerId: 's1' })
+    h.adCheck.mockResolvedValue({ ok: true })
+    const body = (await ucpProduct({ id: 'ad:L1', context: { language: 'vi' } })).body as { product: { title: string; variants: { id: string }[] } }
+    expect(body.product.variants.map((v) => v.id)).toEqual(['ad:L1:week', 'ad:L1:month', 'ad:L1:quarter'])
+    expect(body.product.title).toBe('Quảng cáo trên eno.vn: Phone L1')
   })
 })
 

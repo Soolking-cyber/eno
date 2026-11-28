@@ -546,7 +546,6 @@ export const UI_STRINGS_SERVICES: string[] = [
   "about {n} days left",
   "about {n} h left",
   "about {n} min left",
-  "days",
   "details below",
   "documents",
   "e-Visa (PDF)",

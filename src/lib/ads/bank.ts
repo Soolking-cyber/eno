@@ -75,7 +75,7 @@ const lapsed = (ad: Pick<AdRow, 'status' | 'createdAt'>, now: Date) => ad.status
  * or refund by hand. Never one eno itself closed, or one whose creative eno removed.
  */
 const PAYABLE_CANCELLED = ['expired', 'cancelled_by_shop']
-const payable = (ad: Pick<AdRow, 'status' | 'failReason'>) => ad.status === BANK_AWAITING || (ad.status === BANK_CANCELLED && PAYABLE_CANCELLED.includes(ad.failReason ?? ''))
+export const payable = (ad: Pick<AdRow, 'status' | 'failReason'>) => ad.status === BANK_AWAITING || (ad.status === BANK_CANCELLED && PAYABLE_CANCELLED.includes(ad.failReason ?? ''))
 const PAYABLE_WHERE: Prisma.ListingAdWhereInput = { via: BANK_VIA, OR: [{ status: BANK_AWAITING }, { status: BANK_CANCELLED, failReason: { in: PAYABLE_CANCELLED } }] }
 
 export type BankOrderStatus = 'awaiting_transfer' | 'expired' | 'cancelled' | 'active' | 'review'
@@ -210,7 +210,7 @@ export type OrderResult =
  * checkAdCreative: approved, not removed, reviewed here within a week); for a listing book.ts checkAdListing (the shop's
  * own, live, not in an excluded aisle); the shop's hourly budget (BANK_ORDERS_PER_HOUR, failing closed); then the row.
  */
-export async function createBankOrder(p: { sellerId: string | null; profileId: string; kind: unknown; listingId?: unknown; creativeId?: unknown; period: unknown; now?: Date }): Promise<OrderResult> {
+export async function createBankOrder(p: { sellerId: string | null; profileId: string; kind: unknown; listingId?: unknown; creativeId?: unknown; period: unknown; ucpCheckout?: string; now?: Date }): Promise<OrderResult> {
   const now = p.now ?? new Date()
   const cfg = bankConfig()
   if (!cfg) return { ok: false, status: 503, code: 'bank_unavailable' }
@@ -261,7 +261,8 @@ export async function createBankOrder(p: { sellerId: string | null; profileId: s
           authNonce: reference,
           authValidBefore: new Date(now.getTime() + BANK_ORDER_TTL_MS).toISOString(),
           signature: '',
-          payloadJson: { period, priceVnd, createdBy: p.profileId } as Prisma.InputJsonValue,
+          // `ucpCheckout`: the UCP checkout that made this order (src/lib/ucp/checkout.ts), so its pay step re-finds it.
+          payloadJson: { period, priceVnd, createdBy: p.profileId, ...(p.ucpCheckout ? { ucpCheckout: p.ucpCheckout } : {}) } as Prisma.InputJsonValue,
           createdAt: now,
         },
       })
