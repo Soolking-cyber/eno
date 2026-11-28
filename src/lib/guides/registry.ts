@@ -111,11 +111,20 @@ export const GUIDES: readonly GuideEntry[] = [
   { slug: 'iphone-cpo-la-gi', lang: 'vi', published: '2026-11-27', reviewed: '2026-11-26', reviewedDigest: '34fe4a8a815f0210', pair: 'cpo-iphone-meaning' },
   { slug: 'cac-thanh-pho-lon-viet-nam-nen-song-o-dau', lang: 'vi', published: '2026-11-27', reviewed: '2026-11-27', reviewedDigest: 'b01250b0e1b9eff9', pair: 'vietnam-cities-compared' },
   { slug: 'vietnam-cities-compared', lang: 'en', published: '2026-11-27', reviewed: '2026-11-27', reviewedDigest: '3626406fda2a38f0', pair: 'cac-thanh-pho-lon-viet-nam-nen-song-o-dau' },
-  { slug: 'hp-pavilion-14-ce3xxx', lang: 'en', published: '2026-11-27', reviewed: '2026-11-27', reviewedDigest: '22914a9bfcab7cb2' },
+  { slug: 'hp-pavilion-14-ce3xxx', lang: 'en', published: '2026-11-27', reviewed: '2026-11-27', reviewedDigest: '22914a9bfcab7cb2', pair: 'mua-laptop-hp-pavilion-14-ce3-cu-kiem-tra-cau-hinh-pin' },
   { slug: 'remote-tivi-sony', lang: 'vi', published: '2026-11-27', reviewed: '2026-11-27', reviewedDigest: '267bc5c6fc87ac48', pair: 'sony-tv-remote-replacement' },
   { slug: 'sony-tv-remote-replacement', lang: 'en', published: '2026-11-27', reviewed: '2026-11-27', reviewedDigest: 'c955a8e676153fbe', pair: 'remote-tivi-sony' },
   { slug: 'iphone-mau-cam-bi-chuyen-hong', lang: 'vi', published: '2026-11-27', reviewed: '2026-11-27', reviewedDigest: '23c04d65403a915d', pair: 'orange-iphone-turning-pink' },
   { slug: 'orange-iphone-turning-pink', lang: 'en', published: '2026-11-27', reviewed: '2026-11-27', reviewedDigest: '5a4f8fb26709e0ed', pair: 'iphone-mau-cam-bi-chuyen-hong' },
+  { slug: 'mua-laptop-hp-pavilion-14-ce3-cu-kiem-tra-cau-hinh-pin', lang: 'vi', published: '2026-11-28', reviewed: '2026-11-28', reviewedDigest: 'a686cf437f855d17', pair: 'hp-pavilion-14-ce3xxx' },
+  { slug: 'samsung-galaxy-s8-imei-on-box', lang: 'en', published: '2026-11-28', reviewed: '2026-11-28', reviewedDigest: '29368a25d5657d59', pair: 'xem-imei-samsung-s8-tren-vo-hop' },
+  { slug: 'son-doong-tours', lang: 'en', published: '2026-11-28', reviewed: '2026-11-28', reviewedDigest: '09d7431ab13619a8' },
+  { slug: 'temple-of-literature-hanoi', lang: 'en', published: '2026-11-28', reviewed: '2026-11-28', reviewedDigest: '23410dd7c0b00fe5', pair: 'van-mieu-quoc-tu-giam-gia-ve-gio-mo-cua' },
+  { slug: 'used-dell-24-inch-monitor', lang: 'en', published: '2026-11-28', reviewed: '2026-11-28', reviewedDigest: '92992c5f13fa8ddd' },
+  { slug: 'van-mieu-quoc-tu-giam-gia-ve-gio-mo-cua', lang: 'vi', published: '2026-11-28', reviewed: '2026-11-28', reviewedDigest: '65f2f7d49e430357', pair: 'temple-of-literature-hanoi' },
+  { slug: 'xem-imei-samsung-s8-tren-vo-hop', lang: 'vi', published: '2026-11-28', reviewed: '2026-11-28', reviewedDigest: '2f79ff53bf5ab804', pair: 'samsung-galaxy-s8-imei-on-box' },
+  { slug: 'my-son-sanctuary', lang: 'en', published: '2026-11-28', reviewed: '2026-11-28', reviewedDigest: 'a765b30774ddb760', pair: 'thanh-dia-my-son-gia-ve-cach-di' },
+  { slug: 'thanh-dia-my-son-gia-ve-cach-di', lang: 'vi', published: '2026-11-28', reviewed: '2026-11-28', reviewedDigest: '91f3545a82130dac', pair: 'my-son-sanctuary' },
   // </generated-guides>
   // ⚠️ NOT FROM REACH, SO OUTSIDE THE GENERATED BLOCK: the owner approved this text in chat on 2026-11-19 ("blog post in eno.vn deploy so when someone searches
   // for muaban.net alternative on google we pop up"), after reading it. scripts/carry-guides.mjs owns only the block above and never reads or rewrites these lines.

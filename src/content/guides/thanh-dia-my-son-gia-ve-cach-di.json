@@ -1,0 +1,356 @@
+{
+  "slug": "thanh-dia-my-son-gia-ve-cach-di",
+  "title": "Thánh địa Mỹ Sơn: giá vé, giờ mở cửa và cách đi",
+  "description": "Thánh địa Mỹ Sơn: giá vé đọc ngày 27/11/2026, mức phí mới năm 2026, giờ biểu diễn, xe buýt du lịch đang tạm dừng và có nên thuê hướng dẫn viên.",
+  "h1": "Thánh địa Mỹ Sơn: đi thế nào, mua vé gì và nên đi lúc nào",
+  "eyebrow": "Du lịch Việt Nam",
+  "intro": "Thánh địa Mỹ Sơn là quần thể đền tháp Chăm được UNESCO công nhận năm 1999, cách Hội An khoảng 35 km, mở cửa 06:00-18:00 hằng ngày theo cổng bán vé chính thức, tháng 11/2026. Xe buýt du lịch từ Hội An tạm dừng từ 15/9/2026, nên phần lớn du khách đi ô tô, xe máy hoặc theo tour.",
+  "keyPoints": [
+    "Khu di tích mở cửa **06:00-18:00**, bán vé đến 17:30, theo cổng bán vé chính thức của Mỹ Sơn, tháng 11/2026.",
+    "Ngày 27/11/2026, cổng bán vé ghi **{{vnd:100000}}** cho khách Việt Nam, **{{vnd:150000}}** cho khách nước ngoài và **{{vnd:30000}}** cho vé dịch vụ xe điện.",
+    "HĐND TP Đà Nẵng quy định phí tham quan Mỹ Sơn **{{vnd:40000}}**/người/lượt từ 21/2/2026 (Nghị quyết 02/2026/NQ-HĐND). Chưa trang nào giải thích mức phí này khớp với giá trên cổng bán vé ra sao, nên hãy hỏi lại ở quầy.",
+    "Xe buýt du lịch **01DL** (Hội An - Mỹ Sơn - Cổng Trời Đông Giang) tạm dừng 6 tháng từ 15/9/2026.",
+    "Nên đi sớm: cổng du lịch Đà Nẵng gợi ý đến khoảng 06:30-09:00, lúc trời mát và ánh sáng dịu."
+  ],
+  "sections": [
+    {
+      "id": "thanh-dia-my-son-o-dau",
+      "title": "Thánh địa Mỹ Sơn ở đâu tại Việt Nam?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Thánh địa Mỹ Sơn nằm ở miền Trung, trong một thung lũng đồi núi phía tây nam Hội An. Theo [Danang Fantasticity](https://danangfantasticity.com/en/kham-pha/kham-pha-my-son-that-de-gia-ve-khoang-cach-cach-di-tips-huu-ich), cổng thông tin du lịch của thành phố, tính đến tháng 6/2026, Mỹ Sơn cách **Hội An khoảng 35 km** (45 phút đến 1 giờ đi đường bộ) và cách **trung tâm Đà Nẵng 45-50 km** (khoảng 1 giờ 15 phút đến 1 giờ 30 phút)."
+        },
+        {
+          "type": "p",
+          "text": "Đây là quần thể đền tháp Ấn Độ giáo do vương quốc Champa xây dựng từ thế kỷ 4 đến thế kỷ 13, chủ yếu thờ thần Shiva. UNESCO ghi danh Mỹ Sơn là Di sản Thế giới năm 1999. Tháng 8/1969, máy bay Mỹ ném bom khu vực này, nên nhiều tháp hiện chỉ còn là phế tích hoặc được trùng tu một phần, theo [Wikipedia](https://en.wikipedia.org/wiki/M%E1%BB%B9_S%C6%A1n_archaeological_site)."
+        },
+        {
+          "type": "p",
+          "text": "**Ban quản lý Di sản Văn hóa Mỹ Sơn** quản lý khu di tích và vận hành [cổng bán vé trực tuyến chính thức](https://mysonticketonline.vn/information). Các bài viết cũ ghi Mỹ Sơn thuộc huyện Duy Xuyên, tỉnh Quảng Nam. Sau đợt sắp xếp tỉnh tháng 7/2025, chân trang của cổng bán vé ghi địa chỉ là thôn Mỹ Sơn, xã Thu Bồn, TP Đà Nẵng."
+        }
+      ]
+    },
+    {
+      "id": "gia-ve-thanh-dia-my-son",
+      "title": "Giá vé Thánh địa Mỹ Sơn bao nhiêu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Cổng bán vé chính thức niêm yết một mức cho khách Việt Nam, một mức cao hơn cho khách nước ngoài, cộng thêm vé dịch vụ xe điện. Giá vé đang thay đổi trong năm 2026, nên hãy xem lại trên cổng bán vé hoặc ở quầy vào ngày đi."
+        },
+        {
+          "type": "table",
+          "caption": "Giá vé trên cổng bán vé Mỹ Sơn (mysonticketonline.vn), đọc ngày 27/11/2026. Cổng ghi giá đã gồm VAT.",
+          "headers": [
+            "Loại vé",
+            "Giá",
+            "Ghi chú"
+          ],
+          "rows": [
+            [
+              "Khách Việt Nam",
+              "{{vnd:100000}}",
+              "Mỗi người"
+            ],
+            [
+              "Khách nước ngoài",
+              "{{vnd:150000}}",
+              "Mỗi người"
+            ],
+            [
+              "Vé dịch vụ (xe điện)",
+              "{{vnd:30000}}",
+              "Trẻ từ 5 đến 15 tuổi mua vé này để đi xe điện"
+            ],
+            [
+              "Trẻ dưới 5 tuổi",
+              "Không mất tiền",
+              "Vào cửa không mất phí"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Theo Danang Fantasticity, tính đến tháng 6/2026, vé tham quan bao gồm khu đền tháp, Bảo tàng Mỹ Sơn, xe điện trung chuyển và các tiết mục văn hóa Chăm. Cũng theo trang này, dịch vụ thuyết minh tính phí riêng, tùy theo số người trong đoàn."
+        },
+        {
+          "type": "h3",
+          "text": "Năm 2026 phí tham quan Mỹ Sơn có thay đổi không?"
+        },
+        {
+          "type": "p",
+          "text": "Có, ít nhất là trên văn bản. Ngày 11/2/2026, HĐND TP Đà Nẵng thông qua [Nghị quyết 02/2026/NQ-HĐND](https://danang.gov.vn/vi/w/quy-dinh-muc-thu-10000-40000-dong-luot-tham-quan-tai-hoi-an-my-son-va-cac-thap-co), quy định phí tham quan tháp cổ Mỹ Sơn là {{vnd:40000}}/người/lượt, áp dụng chung cho khách Việt Nam và nước ngoài, từ ngày 21/2/2026."
+        },
+        {
+          "type": "p",
+          "text": "Nghị quyết miễn phí cho trẻ em dưới 16 tuổi và học sinh, sinh viên; công dân Việt Nam từ 60 tuổi trở lên; công dân Việt Nam có giấy xác nhận khuyết tật; người hưởng chính sách ưu đãi văn hóa theo Quyết định 170/2003/QĐ-TTg; và khách ngoại giao."
+        },
+        {
+          "type": "p",
+          "text": "Cả trang của thành phố lẫn cổng bán vé đều không giải thích mức phí này liên quan thế nào với giá cao hơn mà cổng bán vé vẫn ghi ngày 27/11/2026. Có thể đây là hai khoản khác nhau, ví dụ phí nhà nước và giá dịch vụ. Riêng [Tuổi Trẻ](https://tuoitre.vn/my-son-ap-dung-ve-tham-quan-dong-gia-250-000-dong-2026013015533636.htm) đưa tin ngày 30/1/2026 rằng Ban quản lý dự kiến đề xuất giá vé đồng giá {{vnd:250000}} cho mọi du khách. Đề xuất này cần HĐND thành phố phê duyệt, và đến tháng 11/2026 chưa trang nào xác nhận nó đã được áp dụng."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Hỏi rõ giá trước khi trả tiền",
+          "text": "Các công ty tour và blog cũ ghi giá khác nhau. Hãy xem tổng tiền cho cả nhóm trên [cổng bán vé](https://mysonticketonline.vn/information) hoặc hỏi ở quầy: đã gồm xe điện chưa, và con bạn hoặc người thân từ 60 tuổi trở lên có được miễn theo nghị quyết năm 2026 không."
+        }
+      ]
+    },
+    {
+      "id": "thanh-dia-my-son-mo-cua-may-gio",
+      "title": "Thánh địa Mỹ Sơn mở cửa mấy giờ?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Khu di tích mở cửa hằng ngày từ 06:00 đến 18:00, bán vé từ 06:00 đến 17:30, theo cổng bán vé chính thức, tháng 11/2026. Danang Fantasticity ghi giờ bán vé và giờ mở cửa bảo tàng kết thúc lúc 17:00, tính đến tháng 6/2026, nên tốt nhất hãy đến trước 17:00."
+        },
+        {
+          "type": "table",
+          "caption": "Giờ mở cửa và lịch biểu diễn trên cổng bán vé Mỹ Sơn, đọc ngày 27/11/2026. Biểu diễn tạm dừng khi thời tiết xấu.",
+          "headers": [
+            "Hoạt động",
+            "Thời gian",
+            "Địa điểm"
+          ],
+          "rows": [
+            [
+              "Tham quan",
+              "06:00-18:00 hằng ngày",
+              "Toàn khu di tích"
+            ],
+            [
+              "Bán vé",
+              "06:00-17:30",
+              "Quầy vé và trực tuyến"
+            ],
+            [
+              "Múa Chăm",
+              "Có các suất 09:45, 10:30, 11:15, 14:00, 16:00",
+              "Khu tháp G"
+            ],
+            [
+              "Hát dân ca Chăm",
+              "09:00 và 14:45, thứ Hai, thứ Tư, thứ Sáu",
+              "Dốc tháp H"
+            ],
+            [
+              "Chương trình \"Âm vang Mỹ Sơn\"",
+              "09:00 và 14:45 ngày 15 hằng tháng",
+              "Khu tháp B, C, D"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Nên đi Mỹ Sơn vào giờ nào trong ngày?"
+        },
+        {
+          "type": "p",
+          "text": "Buổi sáng sớm là tốt nhất. Danang Fantasticity gợi ý đến khoảng 06:30-09:00, khi trời mát và ánh sáng dịu, và đi sáng sớm vẫn kịp xem một suất múa Chăm trước trưa. Trang này cũng khuyên dành ít nhất 3-4 giờ cho các nhóm tháp chính, bảo tàng và một buổi biểu diễn."
+        },
+        {
+          "type": "p",
+          "text": "Phần lớn khu di tích ở ngoài trời, ít bóng râm. Mang mũ, nước, kem chống nắng và giày đế bằng; mùa mưa thì thêm áo mưa mỏng."
+        }
+      ]
+    },
+    {
+      "id": "cach-di-thanh-dia-my-son",
+      "title": "Đi Thánh địa Mỹ Sơn từ Hội An, Đà Nẵng bằng gì?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Hiện bạn có thể đi ô tô hoặc taxi, xe máy, hoặc theo tour; xe buýt du lịch chuyên tuyến đang tạm dừng. Từ Hội An khoảng 35 km, từ trung tâm Đà Nẵng 45-50 km."
+        },
+        {
+          "type": "table",
+          "caption": "Các cách đến Thánh địa Mỹ Sơn. Khoảng cách và thời gian theo Danang Fantasticity (tháng 6/2026); tình trạng xe buýt theo thông báo của Danang Bus ngày 14/9/2026.",
+          "headers": [
+            "Cách đi",
+            "Phù hợp với",
+            "Cần biết"
+          ],
+          "rows": [
+            [
+              "Ô tô, taxi, thuê xe có tài xế",
+              "Gia đình, nhóm, trời mưa",
+              "Chủ động giờ giấc. Thỏa thuận trước giá và thời gian chờ với tài xế"
+            ],
+            [
+              "Xe máy",
+              "Người quen đi đường dài",
+              "Đường qua đồng ruộng, làng quê. Cần bằng lái hợp lệ và chịu nắng mưa"
+            ],
+            [
+              "Tour có hướng dẫn viên",
+              "Muốn nghe lịch sử, không muốn tự lo",
+              "Giá, quy mô đoàn và điểm đón khác nhau tùy công ty"
+            ],
+            [
+              "Xe buýt du lịch 01DL",
+              "Hiện không chạy",
+              "Tạm dừng 6 tháng từ 15/9/2026"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Có xe buýt từ Hội An đi Mỹ Sơn không?"
+        },
+        {
+          "type": "p",
+          "text": "Hiện không có. Theo [thông báo của Danang Bus](https://www.danangbus.vn/tin-tuc/tin-tuc/thong-bao-ve-viec-tam-dung-khai-thac-tuyen-xe-buyt-du-lich-hoi-an--my-son--cong-troi-dong-giang-5762.html) ngày 14/9/2026, tuyến xe buýt du lịch 01DL (Hội An - Mỹ Sơn - Cổng Trời Đông Giang) tạm dừng khai thác 6 tháng từ 15/9/2026, theo văn bản số 16791/SXD-VTATGT ngày 11/9/2026 của Sở Xây dựng Đà Nẵng. Sau giữa tháng 3/2027, hãy kiểm tra lại trên Danang Bus trước khi tính đi xe buýt."
+        },
+        {
+          "type": "h3",
+          "text": "Đi xe máy đến Mỹ Sơn có được không?"
+        },
+        {
+          "type": "p",
+          "text": "Được, nếu bạn có bằng lái phù hợp. Nếu cần thuê xe ở Hội An hoặc Đà Nẵng, [kinh nghiệm thuê xe máy ở Việt Nam](/huong-dan/kinh-nghiem-thue-xe-may-viet-nam) nói về tiền cọc, giấy tờ và những gì cần kiểm tra trước khi chạy đường xa."
+        }
+      ]
+    },
+    {
+      "id": "co-nen-di-tour-my-son",
+      "title": "Đi Mỹ Sơn nên theo tour hay tự túc?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Thuê hướng dẫn viên nếu bạn muốn hiểu mình đang nhìn thấy gì; đi tự túc nếu bạn chủ yếu muốn ánh sáng sáng sớm và tự chọn nhịp đi. Nhiều tháp đã đổ nát, ít bảng giải thích, nên câu chuyện Champa phần lớn đến từ người thuyết minh. Cổng bán vé cũng khuyến khích đi cùng hướng dẫn viên."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Tự túc:** bạn chọn giờ đến, điều quan trọng khi trời nóng. Bạn trả vé và tự lo phương tiện, có thể thuê thuyết minh tại chỗ với phí tính theo số người, theo Danang Fantasticity, tháng 6/2026.",
+            "**Tour ghép từ Hội An hoặc Đà Nẵng:** gồm xe đưa đón và thường có hướng dẫn viên. Hỏi rõ đã gồm vé vào cửa chưa, được bao lâu ở khu di tích, và giờ đến có kịp suất múa không.",
+            "**Thuê xe riêng kèm hướng dẫn viên:** linh hoạt nhất và đắt nhất, hợp với gia đình hoặc nhóm chia tiền."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Vé và dịch vụ du lịch đôi khi được đăng ở mục [Vé và du lịch trên eno.vn](/c/tickets-travel). Hãy so sánh từng gói bao gồm những gì trước khi trả tiền."
+        }
+      ]
+    },
+    {
+      "id": "kinh-nghiem-di-my-son",
+      "title": "Kinh nghiệm đi Thánh địa Mỹ Sơn: chuẩn bị từng bước",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Dành trọn một buổi sáng: xuất phát sớm từ Hội An hoặc Đà Nẵng, đến ngay sau 06:00 và về kịp bữa trưa. Danang Fantasticity cũng gợi ý có thể kết hợp Mỹ Sơn với Hội An trong cùng một ngày."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Xem giá vé và giờ mở cửa",
+              "text": "Mở [cổng bán vé chính thức](https://mysonticketonline.vn/information) hôm trước ngày đi. Giá và phí đã thay đổi trong năm 2026."
+            },
+            {
+              "title": "Chọn phương tiện",
+              "text": "Đặt tour, thỏa thuận giá xe hoặc thuê xe máy. Đừng tính đi xe buýt 01DL trong thời gian tạm dừng."
+            },
+            {
+              "title": "Ăn mặc phù hợp",
+              "text": "Cổng bán vé yêu cầu trang phục lịch sự, kín đáo, không mặc quần áo ngắn hoặc hở hang. Đi giày đế bằng vì lối đi ngoài trời không bằng phẳng, mang mũ, nước và áo mưa."
+            },
+            {
+              "title": "Mua vé và đi xe điện",
+              "text": "Mua trực tuyến hoặc tại quầy, cầm vé hoặc thẻ vào cổng trên tay để soát, và dùng vé dịch vụ để đi xe điện vào khu tháp."
+            },
+            {
+              "title": "Canh giờ xem biểu diễn",
+              "text": "Múa Chăm ở khu tháp G có các suất 09:45, 10:30, 11:15, 14:00 và 16:00, tạm dừng khi thời tiết xấu."
+            },
+            {
+              "title": "Tuân thủ nội quy",
+              "text": "Không chạm, trèo, viết hay khắc lên di tích, không ăn uống trong khu di tích. Được chụp ảnh nhưng không dùng đèn flash; quay phim, chụp ảnh thương mại phải xin phép."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bai-nay-khong-de-cap",
+      "title": "Bài này không đề cập",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Vé tham quan Phố cổ Hội An và các tháp Chăm khác cùng nằm trong Nghị quyết 02/2026. Xem [thông báo của TP Đà Nẵng](https://danang.gov.vn/vi/w/quy-dinh-muc-thu-10000-40000-dong-luot-tham-quan-tai-hoi-an-my-son-va-cac-thap-co).",
+            "Giá tour của các công ty du lịch: thay đổi theo đơn vị và mùa, và khi kiểm tra vào tháng 11/2026 chưa xác nhận được mức nào.",
+            "Nên ở thành phố nào khi đi miền Trung. Xem [so sánh các thành phố lớn ở Việt Nam](/huong-dan/cac-thanh-pho-lon-viet-nam-nen-song-o-dau)."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Thánh địa Mỹ Sơn ở đâu?",
+      "a": "Thánh địa Mỹ Sơn nằm ở miền Trung Việt Nam, cách Hội An khoảng 35 km và cách trung tâm Đà Nẵng 45-50 km, theo cổng du lịch Đà Nẵng tháng 6/2026. Sau đợt sắp xếp tỉnh tháng 7/2025, cổng bán vé chính thức ghi địa chỉ là thôn Mỹ Sơn, xã Thu Bồn, TP Đà Nẵng; trước đây Mỹ Sơn thuộc huyện Duy Xuyên, Quảng Nam. Đây là quần thể đền tháp Chăm được UNESCO công nhận năm 1999."
+    },
+    {
+      "q": "Giá vé Thánh địa Mỹ Sơn 2026 bao nhiêu?",
+      "a": "Ngày 27/11/2026, cổng bán vé chính thức của Mỹ Sơn niêm yết một mức cho khách Việt Nam, một mức cao hơn cho khách nước ngoài và một vé dịch vụ xe điện riêng. Tháng 2/2026, HĐND TP Đà Nẵng còn quy định một mức phí tham quan chung cho mọi du khách. Hai mức này khớp với nhau thế nào chưa được công bố, nên hãy xem bảng giá trong bài và hỏi tổng tiền ở quầy trước khi trả."
+    },
+    {
+      "q": "Người cao tuổi và trẻ em có được miễn vé Mỹ Sơn không?",
+      "a": "Theo Nghị quyết 02/2026/NQ-HĐND của HĐND TP Đà Nẵng, áp dụng từ 21/2/2026, phí tham quan Mỹ Sơn được miễn cho trẻ em dưới 16 tuổi và học sinh, sinh viên, công dân Việt Nam từ 60 tuổi trở lên, công dân Việt Nam có giấy xác nhận khuyết tật và khách ngoại giao. Cổng bán vé vẫn ghi trẻ từ 5 đến 15 tuổi mua vé dịch vụ xe điện, nên hãy hỏi rõ ở quầy."
+    },
+    {
+      "q": "Thánh địa Mỹ Sơn mở cửa mấy giờ?",
+      "a": "Thánh địa Mỹ Sơn mở cửa hằng ngày từ 06:00 đến 18:00 và bán vé đến 17:30, theo cổng bán vé chính thức, tháng 11/2026. Cổng du lịch Đà Nẵng ghi giờ bán vé kết thúc lúc 17:00 vào tháng 6/2026, nên đến trước 17:00 là an toàn hơn. Các suất múa Chăm ở khu tháp G diễn ra vào buổi sáng và buổi chiều, đến 16:00."
+    },
+    {
+      "q": "Có xe buýt từ Hội An đi Mỹ Sơn không?",
+      "a": "Xe buýt du lịch Hội An - Mỹ Sơn, tuyến 01DL, tạm dừng khai thác 6 tháng từ 15/9/2026, theo thông báo của Danang Bus ngày 14/9/2026. Trong thời gian này, du khách đến Thánh địa Mỹ Sơn bằng taxi hoặc xe có tài xế, bằng xe máy, hoặc theo tour từ Hội An, Đà Nẵng. Hãy kiểm tra trên Danang Bus để biết ngày tuyến chạy lại."
+    },
+    {
+      "q": "Đi Mỹ Sơn có cần hướng dẫn viên không?",
+      "a": "Đi Thánh địa Mỹ Sơn không bắt buộc có hướng dẫn viên, nhưng nhiều tháp Chăm đã đổ nát và ít bảng giải thích, nên người thuyết minh giúp hiểu di tích hơn nhiều. Cổng du lịch Đà Nẵng cho biết, tính đến tháng 6/2026, có thể thuê thuyết minh tại chỗ với phí tính theo số người trong đoàn. Tour ghép và tour riêng từ Hội An, Đà Nẵng thường có hướng dẫn viên."
+    },
+    {
+      "q": "Nên đi Thánh địa Mỹ Sơn lúc mấy giờ?",
+      "a": "Thời điểm đẹp nhất để đi Thánh địa Mỹ Sơn là sáng sớm, khoảng 06:30 đến 09:00, theo cổng du lịch Đà Nẵng, vì trời mát và ánh sáng dịu. Nên dành ít nhất 3-4 giờ cho các nhóm tháp chính, bảo tàng và một suất múa Chăm. Khu di tích chủ yếu ở ngoài trời, ít bóng râm, nên mang nước, mũ, kem chống nắng và áo mưa vào mùa mưa."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Thông tin mua vé - Mỹ Sơn Bán vé online",
+      "publisher": "Ban quản lý Di sản Văn hóa Mỹ Sơn",
+      "url": "https://mysonticketonline.vn/information"
+    },
+    {
+      "title": "Quy định mức thu 10.000-40.000 đồng/lượt tham quan tại Hội An, Mỹ Sơn và các tháp cổ",
+      "publisher": "Cổng thông tin điện tử thành phố Đà Nẵng",
+      "url": "https://danang.gov.vn/vi/w/quy-dinh-muc-thu-10000-40000-dong-luot-tham-quan-tai-hoi-an-my-son-va-cac-thap-co"
+    },
+    {
+      "title": "Thông báo về việc tạm dừng khai thác tuyến xe buýt du lịch Hội An - Mỹ Sơn - Cổng Trời Đông Giang",
+      "publisher": "Danang Bus",
+      "url": "https://www.danangbus.vn/tin-tuc/tin-tuc/thong-bao-ve-viec-tam-dung-khai-thac-tuyen-xe-buyt-du-lich-hoi-an--my-son--cong-troi-dong-giang-5762.html"
+    },
+    {
+      "title": "Khám phá Mỹ Sơn thật dễ - Giá vé, khoảng cách, cách đi & tips hữu ích cần biết",
+      "publisher": "Danang Fantasticity (Trung tâm Xúc tiến Du lịch Đà Nẵng)",
+      "url": "https://danangfantasticity.com/en/kham-pha/kham-pha-my-son-that-de-gia-ve-khoang-cach-cach-di-tips-huu-ich"
+    },
+    {
+      "title": "Mỹ Sơn áp dụng vé tham quan đồng giá 250.000 đồng",
+      "publisher": "Tuổi Trẻ Online",
+      "url": "https://tuoitre.vn/my-son-ap-dung-ve-tham-quan-dong-gia-250-000-dong-2026013015533636.htm"
+    },
+    {
+      "title": "Mỹ Sơn archaeological site",
+      "publisher": "Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/M%E1%BB%B9_S%C6%A1n_archaeological_site"
+    }
+  ],
+  "related": [],
+  "lastChecked": "2026-11-27"
+}

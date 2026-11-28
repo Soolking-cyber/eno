@@ -1,0 +1,370 @@
+{
+  "slug": "mua-laptop-hp-pavilion-14-ce3-cu-kiem-tra-cau-hinh-pin",
+  "title": "HP Pavilion 14-ce3xxx cũ: cấu hình, nơi bán, cách kiểm tra",
+  "description": "Cách nhận đúng HP Pavilion 14-ce3xxx, cửa hàng nào còn bán, RAM và ổ cứng cần hỏi người bán, cách đọc báo cáo pin Windows trước khi trả tiền.",
+  "h1": "Laptop HP Pavilion 14-ce3xxx: nhận đúng máy, tìm nơi bán và kiểm tra trước khi mua",
+  "eyebrow": "Laptop cũ",
+  "intro": "HP Pavilion 14-ce3xxx là dòng laptop 14 inch HP ra năm 2019, dùng chip Intel Core thế hệ 10. Thegioididong và CellphoneS hiện không còn hàng, nên bạn chủ yếu mua máy cũ. Trước khi mua, hãy đọc mã máy trên tem, hỏi rõ RAM và SSD, chạy báo cáo pin của Windows và xem máy lên được Windows 11 hay không.",
+  "keyPoints": [
+    "Dòng 14-ce3xxx dùng chip Intel Core thế hệ 10 (Ice Lake) như i3-1005G1 và i5-1035G1, màn hình 14 inch Full HD, pin liền 41 Wh, nặng khoảng 1,6 kg.",
+    "Hai bản bán ở Việt Nam mà bài này đọc được có đuôi **TU**: 14-ce3013TU (8QN72PA) và 14-ce3014TU (8QP03PA). Đối chiếu cả mã máy lẫn mã sản phẩm với tin rao.",
+    "Kiểm tra ngày 27/11/2026: Thegioididong ghi 14-ce3014TU là \"Ngưng kinh doanh\", CellphoneS ghi 14-ce3013TU là \"Tạm hết hàng\".",
+    "Bản 14-ce3014TU xuất xưởng với 4 GB RAM trên **1 khe**, tối đa 16 GB, SSD NVMe và còn khe ổ SATA, nên phải hỏi máy hiện đang lắp gì.",
+    "Chạy `powercfg /batteryreport` rồi so Full Charge Capacity với Design Capacity. Theo Dell, dưới 40% là pin đã chai nặng, nên thay.",
+    "Windows 10 hết hỗ trợ từ 14/10/2025, nhưng Microsoft liệt kê Core i3, i5, i7 thế hệ 10 trong danh sách chip hỗ trợ Windows 11."
+  ],
+  "sections": [
+    {
+      "id": "hp-pavilion-14-ce3xxx-la-may-gi",
+      "title": "HP Pavilion 14-ce3xxx là máy gì, cấu hình ra sao?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "HP Pavilion 14-ce3xxx là dòng laptop 14 inch phổ thông của HP, mọi phiên bản đều dùng chip Intel Core thế hệ 10. Ba chữ \"xxx\" thay cho từng cấu hình cụ thể. Theo Thegioididong, bản 14-ce3014TU ra mắt năm 2019 và cài sẵn Windows 10 Home."
+        },
+        {
+          "type": "p",
+          "text": "Các bản trong bảng dưới cùng có màn hình 14 inch Full HD (1920 x 1080), pin liền không tháo rời và nặng khoảng 1,6 kg. Theo CellphoneS và Notebookcheck, pin là loại 41 Wh; CellphoneS ghi pin 3 cell. Khác nhau giữa các bản là chip, RAM và ổ cứng."
+        },
+        {
+          "type": "table",
+          "caption": "Các bản 14-ce3xxx và cấu hình lúc bán ra, theo trang của cửa hàng và trang đánh giá đọc ngày 27/11/2026",
+          "headers": [
+            "Mã máy",
+            "Chip",
+            "RAM và ổ cứng lúc bán",
+            "Nguồn"
+          ],
+          "rows": [
+            [
+              "14-ce3013TU (8QN72PA)",
+              "Core i3-1005G1, 2 nhân 4 luồng",
+              "4 GB, SSD 256 GB M.2 NVMe",
+              "CellphoneS"
+            ],
+            [
+              "14-ce3014TU (8QP03PA)",
+              "Core i3-1005G1",
+              "4 GB DDR4 2666 MHz (1 khe), SSD 256 GB NVMe",
+              "Thegioididong"
+            ],
+            [
+              "14-ce3001ns (thị trường Tây Ban Nha)",
+              "Core i5-1035G1, 4 nhân 8 luồng",
+              "16 GB, SSD 1 TB",
+              "Notebookcheck"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Theo Thegioididong, bản 14-ce3014TU có 2 cổng USB 3.1, 1 USB Type-C, HDMI, cổng mạng LAN (RJ45) và khe đọc thẻ SD. Máy có Wi-Fi 802.11ac, Bluetooth 5.0, loa tinh chỉnh bởi Bang & Olufsen, vỏ nhựa với mặt lưng kim loại và **không có đèn bàn phím**. Tin rao 14-ce3014TU mà ghi \"có đèn phím\" thì hoặc máy đã thay bàn phím, hoặc mô tả sai, nên hỏi lại người bán."
+        },
+        {
+          "type": "p",
+          "text": "Nếu còn phân vân về kích cỡ, xem [nên mua laptop 14 inch hay 15.6 inch](/huong-dan/nen-mua-laptop-14-inch-hay-15-6-inch) và [laptop 14 inch bao nhiêu cm](/huong-dan/kich-thuoc-laptop-14-inch-bao-nhieu-cm)."
+        }
+      ]
+    },
+    {
+      "id": "cach-nhan-biet-dung-ma-may",
+      "title": "Làm sao biết máy đúng là 14-ce3xxx?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Đọc mã máy và mã sản phẩm ngay trên máy, rồi đối chiếu cả hai với tin rao. Chỉ ghi \"HP Pavilion 14\" là chưa đủ, vì HP dùng tên này cho nhiều đời máy, còn mã ce3 mới là đời dùng chip thế hệ 10."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Lật máy, đọc tem dưới đáy",
+              "text": "Tìm mã máy, ví dụ 14-ce3014TU, và mã sản phẩm, ví dụ 8QP03PA. Trang của Thegioididong và CellphoneS ghi hai mã này đi cùng nhau cho từng bản."
+            },
+            {
+              "title": "Xem Windows báo chip gì",
+              "text": "Vào Settings > System > About. Chip phải là thế hệ 10, như i3-1005G1 hoặc i5-1035G1. Nếu Windows báo chip thế hệ 8, đó là đời Pavilion 14 cũ hơn."
+            },
+            {
+              "title": "So RAM và ổ cứng với tin rao",
+              "text": "Trang About cho biết dung lượng RAM đã lắp, File Explorer cho biết dung lượng ổ. Một chiếc 14-ce3014TU mà có 8 GB RAM tức là đã thay thanh RAM sau khi xuất xưởng. Điều đó không sao, nhưng nên hỏi người bán."
+            },
+            {
+              "title": "Tra mã sản phẩm",
+              "text": "Tìm mã sản phẩm như 8QP03PA trên mạng để ra cấu hình gốc, rồi so với những gì người bán mô tả."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Tem và phần cứng có thể không khớp",
+          "text": "Sau sửa chữa, tem có thể đến từ một vỏ máy khác. Nếu tem ghi 14-ce3 mà Windows báo chip đời cũ, hãy tin con chip."
+        }
+      ]
+    },
+    {
+      "id": "mua-hp-pavilion-14-ce3xxx-o-dau",
+      "title": "Mua HP Pavilion 14-ce3xxx ở đâu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Các chuỗi bán lẻ lớn đã ngừng bán 14-ce3xxx, nên thực tế bạn sẽ mua máy cũ từ người bán cá nhân hoặc cửa hàng laptop cũ. Ngày 27/11/2026, cả hai trang của chuỗi lớn mà bài này kiểm tra đều không còn hàng."
+        },
+        {
+          "type": "table",
+          "caption": "Tình trạng trang 14-ce3xxx ở hai chuỗi bán lẻ, kiểm tra ngày 27/11/2026",
+          "headers": [
+            "Cửa hàng",
+            "Mã máy",
+            "Trang ghi gì"
+          ],
+          "rows": [
+            [
+              "Thegioididong",
+              "14-ce3014TU (8QP03PA)",
+              "\"Ngưng kinh doanh\", không ghi giá"
+            ],
+            [
+              "CellphoneS",
+              "14-ce3013TU (8QN72PA)",
+              "\"Tạm hết hàng\", giá niêm yết {{vnd:11990000}}, giá gốc {{vnd:13490000}}"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Theo CellphoneS, tính đến tháng 11/2026, mức giá trên là giá máy mới 14-ce3013TU mà cửa hàng đang hết hàng. Hãy coi đó là mức trần: máy cũ đời 2019 phải rẻ hơn hẳn. Không nguồn nào bài này đọc công bố giá máy cũ, nên hãy so nhiều tin rao cùng mã sản phẩm."
+        },
+        {
+          "type": "p",
+          "text": "Trên eno.vn, laptop cũ nằm trong mục [Đồ điện tử](/c/electronics), nơi bạn nhắn tin với người bán ngay trong ứng dụng. Trước khi hẹn xem máy, hãy xin ảnh tem dưới đáy và ảnh chụp báo cáo pin (cách làm ở phần dưới), và đọc [lưu ý an toàn của eno.vn](/safety) trước khi giao tiền."
+        },
+        {
+          "type": "p",
+          "text": "Nếu bạn không nhất thiết phải chọn HP Pavilion, bài [nên mua laptop cũ HP hay Lenovo](/huong-dan/nen-mua-laptop-cu-hp-hay-lenovo) so sánh các dòng máy doanh nhân hay bán cùng tầm giá, còn [Dell Inspiron hay Vostro cũ](/huong-dan/nen-mua-dell-inspiron-hay-vostro) là một lựa chọn khác."
+        }
+      ]
+    },
+    {
+      "id": "cau-hinh-can-hoi-nguoi-ban",
+      "title": "Cần hỏi người bán những thông số nào?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Hỏi rõ chip, RAM, ổ cứng và khe ổ phụ đang trống hay đã lắp ổ. Với 14-ce3xxx cũ, nâng cấp là thứ làm máy khác nhau nhiều nhất, và bản phổ biến ở Việt Nam xuất xưởng với RAM và ổ cứng ít hơn nhiều tin rao hiện nay."
+        },
+        {
+          "type": "h3",
+          "text": "HP Pavilion 14-ce3014TU nâng RAM được không?"
+        },
+        {
+          "type": "p",
+          "text": "Được. Theo Thegioididong, 14-ce3014TU có 4 GB DDR4 2666 MHz trên **1 khe RAM**, hỗ trợ tối đa 16 GB. Vì chỉ có một khe, muốn thêm RAM phải thay thanh cũ bằng thanh lớn hơn chứ không cắm thêm được. Máy còn 4 GB thì hãy đề nghị nâng RAM hoặc trả giá thấp hơn."
+        },
+        {
+          "type": "h3",
+          "text": "Máy có lắp thêm được ổ cứng thứ hai không?"
+        },
+        {
+          "type": "p",
+          "text": "Với 14-ce3014TU thì có. Thegioididong ghi máy có SSD NVMe PCIe và hỗ trợ thêm khe ổ SATA. Hỏi khe này đang trống hay đã có ổ, rồi mở File Explorer xem mọi ổ người bán nhắc tới có hiện ra đủ không."
+        },
+        {
+          "type": "h3",
+          "text": "14-ce3xxx có card đồ họa rời không?"
+        },
+        {
+          "type": "p",
+          "text": "Các bản i3 ở Việt Nam trong bảng trên chỉ có đồ họa tích hợp Intel UHD. Với bản i5-1035G1, Notebookcheck cho rằng đồ họa tích hợp chỉ chơi được game hiện đại ở thiết lập và độ phân giải thấp. Đừng trả thêm tiền vì tin rao ghi \"chơi game\" nếu Device Manager không hiện chip NVIDIA."
+        }
+      ]
+    },
+    {
+      "id": "kiem-tra-pin-laptop",
+      "title": "Kiểm tra độ chai pin 14-ce3xxx thế nào?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Tạo báo cáo pin của Windows rồi so Full Charge Capacity (dung lượng sạc đầy hiện tại) với Design Capacity (dung lượng thiết kế). Pin 14-ce3xxx là pin liền 41 Wh, không tự thay dễ như pin rời, nên tình trạng pin càng quan trọng."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Mở Command Prompt",
+              "text": "Nhấn phím Windows + R, gõ `cmd` rồi Enter."
+            },
+            {
+              "title": "Tạo báo cáo",
+              "text": "Gõ `powercfg /batteryreport`, nhớ có dấu cách trước dấu gạch chéo, rồi Enter."
+            },
+            {
+              "title": "Mở file báo cáo",
+              "text": "Vào thư mục người dùng trong C:\\Users và nhấp đúp file `battery-report.html` để mở bằng trình duyệt."
+            },
+            {
+              "title": "So hai con số",
+              "text": "Ở mục Installed batteries, lấy Full Charge Capacity chia cho Design Capacity. Ví dụ pin 41 Wh nay chỉ còn sạc đầy 30 Wh thì còn khoảng 73% dung lượng thiết kế."
+            }
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Theo [hướng dẫn về báo cáo pin powercfg của Dell](https://www.dell.com/support/kbdoc/en-us/000130117), đọc tháng 11/2026, hai con số lệch nhau là chuyện bình thường. Còn dưới 40% thì pin đã chai nặng và nên thay. Lệnh này có sẵn trong Windows nên dùng trên máy HP cũng y như vậy."
+        },
+        {
+          "type": "p",
+          "text": "Pin còn tốt cũng không trụ được lâu. Notebookcheck dẫn bài đánh giá 14-ce3000 của LaptopMedia, đo được khoảng 6 giờ lướt web khi máy còn mới. Lúc xem máy, hãy rút sạc một lúc để chắc máy không tắt đột ngột và phần trăm pin giảm đều."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Xin ảnh báo cáo pin trước khi đi xem",
+          "text": "Người bán thật lòng chỉ mất một phút để gửi ảnh mục Installed batteries. Khi gặp, hãy tự chạy lại lệnh trên máy, vì ảnh chụp có thể lấy từ máy khác."
+        }
+      ]
+    },
+    {
+      "id": "len-windows-11",
+      "title": "HP Pavilion 14-ce3xxx có lên Windows 11 được không?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Về chip thì được. [Danh sách chip Intel hỗ trợ Windows 11 của Microsoft](https://learn.microsoft.com/en-us/windows-hardware/design/minimum/supported/windows-11-supported-intel-processors) có Core i3, i5 và i7 thế hệ 10, tức bao gồm mọi bản 14-ce3xxx. Điều này quan trọng vì máy xuất xưởng với Windows 10 Home."
+        },
+        {
+          "type": "p",
+          "text": "Theo [Microsoft](https://support.microsoft.com/en-us/windows/windows-10-support-has-ended-on-october-14-2025-2ca8b313-1946-43d3-b55c-2b95b107f281), đọc tháng 11/2026, Windows 10 đã hết hỗ trợ từ ngày 14/10/2025. Chương trình cập nhật bảo mật mở rộng (ESU) cho người dùng cá nhân bảo vệ máy Windows 10 đến ngày 12/10/2027. Máy còn chạy Windows 10 vì vậy không phải lý do để bỏ qua, nhưng hãy tính chuyện nâng cấp."
+        },
+        {
+          "type": "p",
+          "text": "Danh sách của Microsoft chỉ nói về chip. Phần cứng còn lại vẫn phải đạt các yêu cầu khác của Windows 11, và trang này khuyên liên hệ nhà sản xuất phần cứng để biết hỗ trợ cụ thể. Nếu người bán cài Windows không bản quyền, hãy đề nghị họ ghi rõ trong tin nhắn, hoặc tính thêm tiền bản quyền vào giá. Xem thêm [laptop DOS không kèm Windows có nên mua](/huong-dan/laptop-free-dos-co-nen-mua)."
+        }
+      ]
+    },
+    {
+      "id": "kiem-tra-khi-xem-may",
+      "title": "Khi xem máy trực tiếp cần kiểm tra gì?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Thử mọi cổng, kiểm tra bản lề và cho máy chạy pin một lúc. Laptop cũ đời 2019 hay hỏng nhất ở những bộ phận dùng hằng ngày."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Cổng kết nối:** cắm thử cả hai cổng USB-A, cổng USB-C, HDMI, cổng LAN và khe thẻ SD mà Thegioididong liệt kê cho 14-ce3014TU.",
+            "**Màn hình:** mở trang trắng rồi trang đen toàn màn hình để tìm điểm chết, hở sáng ở viền hoặc màn ám vàng.",
+            "**Bản lề và nắp:** gập mở nắp vài lần, xem mặt lưng kim loại có móp gần bản lề không, phần đáy nhựa có nứt không.",
+            "**Bàn phím và touchpad:** gõ thử từng phím trong Notepad. Không có đèn bàn phím trên 14-ce3014TU không phải lỗi, vì bản này vốn không có.",
+            "**Wi-Fi và loa:** kết nối điểm phát Wi-Fi từ điện thoại, mở video ở âm lượng tối đa để nghe có rè không.",
+            "**Sạc:** kiểm tra cục sạc tự cấp nguồn được cho máy và dây không bị quấn băng keo."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Nếu bạn gặp một mã HP khác trên tem, xem [HP Pavilion 3168NGW là gì](/huong-dan/hp-pavilion-3168ngw-la-gi-cau-hinh-gia) để hiểu con số đó nói gì."
+        }
+      ]
+    },
+    {
+      "id": "bai-nay-khong-de-cap",
+      "title": "Bài này không đề cập",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Giá máy cũ cho từng cấu hình: không nguồn nào kiểm tra ngày 27/11/2026 công bố, nên hãy so tin rao cùng mã sản phẩm trong [Đồ điện tử](/c/electronics).",
+            "Chi phí sửa chữa và giá pin thay thế: mỗi tiệm một giá, nên xin báo giá bằng văn bản trước khi chốt giá máy phụ thuộc vào việc sửa.",
+            "Tình trạng bảo hành HP của một máy cụ thể: chỉ HP xác nhận được, dựa trên số serial.",
+            "Các đời Pavilion 14 cũ hơn (ce0, ce1, ce2): dùng chip đời trước, cấu hình khác với bài này."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "HP Pavilion 14-ce3xxx là gì?",
+      "a": "HP Pavilion 14-ce3xxx là dòng laptop 14 inch của HP dùng chip Intel Core thế hệ 10 như i3-1005G1 và i5-1035G1, ra mắt năm 2019 với Windows 10 Home. Ba ký tự cuối chỉ một cấu hình cụ thể. Các bản bán ở Việt Nam có đuôi TU, như 14-ce3013TU hay 14-ce3014TU, và mỗi bản có thêm mã sản phẩm riêng như 8QP03PA in trên tem dưới đáy máy."
+    },
+    {
+      "q": "HP Pavilion 14-ce3014TU còn bán mới không?",
+      "a": "HP Pavilion 14-ce3014TU gần như không còn bán mới ở Việt Nam. Ngày 27/11/2026, Thegioididong ghi 14-ce3014TU là ngưng kinh doanh, còn CellphoneS ghi bản 14-ce3013TU là tạm hết hàng. Người muốn mua HP Pavilion 14-ce3xxx nên tìm máy cũ từ người bán cá nhân hoặc cửa hàng laptop cũ, và so sánh các tin rao có cùng mã sản phẩm."
+    },
+    {
+      "q": "HP Pavilion 14-ce3014TU nâng cấp RAM tối đa bao nhiêu?",
+      "a": "Theo Thegioididong, HP Pavilion 14-ce3014TU hỗ trợ RAM DDR4 2666 MHz tối đa 16 GB. Máy xuất xưởng với 4 GB trên một khe RAM duy nhất, nên muốn tăng RAM phải thay thanh cũ bằng thanh dung lượng lớn hơn. Trước khi mua, hãy hỏi người bán đang lắp thanh bao nhiêu GB và tự xem lại trong Settings, System, About."
+    },
+    {
+      "q": "Cách kiểm tra pin laptop HP Pavilion 14-ce3xxx cũ?",
+      "a": "Để kiểm tra pin HP Pavilion 14-ce3xxx, mở Command Prompt, chạy lệnh powercfg /batteryreport, rồi mở file battery-report.html trong thư mục người dùng. So Full Charge Capacity với Design Capacity. Theo hướng dẫn của Dell, pin còn dưới 40% dung lượng thiết kế là đã chai nặng và nên thay. Pin của 14-ce3xxx là pin liền, dung lượng 41 Wh."
+    },
+    {
+      "q": "HP Pavilion 14-ce3xxx có lên Windows 11 được không?",
+      "a": "Chip của HP Pavilion 14-ce3xxx đáp ứng yêu cầu Windows 11, vì danh sách chip Intel được hỗ trợ của Microsoft có Core i3, i5 và i7 thế hệ 10. Máy xuất xưởng với Windows 10 Home, và Microsoft đã ngừng hỗ trợ Windows 10 từ ngày 14/10/2025, với gói cập nhật bảo mật mở rộng cho người dùng đến ngày 12/10/2027. Máy còn chạy Windows 10 nên được nâng cấp."
+    },
+    {
+      "q": "HP Pavilion 14-ce3014TU có đèn bàn phím không?",
+      "a": "HP Pavilion 14-ce3014TU bán ở Việt Nam không có đèn bàn phím, theo trang cấu hình của Thegioididong. Nếu tin rao ghi 14-ce3014TU có đèn phím, hãy hỏi người bán máy đã thay bàn phím hay mô tả bị sai. Cấu hình bán ở nước khác có thể khác, nên hãy tra mã sản phẩm trên tem để xem cấu hình gốc."
+    },
+    {
+      "q": "Pin HP Pavilion 14-ce3xxx dùng được bao lâu?",
+      "a": "Khi còn mới, HP Pavilion 14-ce3000 lướt web được khoảng 6 giờ trong bài đánh giá của LaptopMedia mà Notebookcheck dẫn lại. Một chiếc HP Pavilion 14-ce3xxx cũ đời 2019 thường dùng được ít hơn, tùy mức chai pin. Báo cáo pin của Windows cho biết pin còn giữ được bao nhiêu trong 41 Wh dung lượng thiết kế ban đầu."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Laptop HP Pavilion 14 ce3014TU i3 1005G1 (8QP03PA)",
+      "publisher": "Thegioididong",
+      "url": "https://www.thegioididong.com/laptop/hp-pavilion-14-ce3014tu-i3-8qp03pa"
+    },
+    {
+      "title": "Laptop HP Pavilion 14-CE3013TU (8QN72PA)",
+      "publisher": "CellphoneS",
+      "url": "https://cellphones.com.vn/laptop-hp-pavilion-14-ce3013tu.html"
+    },
+    {
+      "title": "Windows 10 support has ended on October 14, 2025",
+      "publisher": "Microsoft",
+      "url": "https://support.microsoft.com/en-us/windows/windows-10-support-has-ended-on-october-14-2025-2ca8b313-1946-43d3-b55c-2b95b107f281"
+    },
+    {
+      "title": "Windows 11 supported Intel processors",
+      "publisher": "Microsoft Learn",
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/design/minimum/supported/windows-11-supported-intel-processors"
+    },
+    {
+      "title": "HP Pavilion 14-ce3001ns",
+      "publisher": "Notebookcheck",
+      "url": "https://www.notebookcheck.net/HP-Pavilion-14-ce3001ns.451703.0.html"
+    },
+    {
+      "title": "How to Generate a Battery Report Using the POWERCFG Command",
+      "publisher": "Dell",
+      "url": "https://www.dell.com/support/kbdoc/en-us/000130117"
+    }
+  ],
+  "related": [],
+  "lastChecked": "2026-11-27",
+  "images": {
+    "hero": {
+      "id": "af0342f57f14be663caba88e14b81ae831655ec383d5b4084a1a5ad6291168e2",
+      "w": 1672,
+      "h": 941,
+      "alt": "Minh họa phẳng thể hiện máy tính xách tay bên cạnh RAM, ổ SSD, biểu tượng pin và nhãn dưới đáy được soi bằng kính lúp.",
+      "caption": "Những điểm cần kiểm tra trước khi mua HP Pavilion 14-ce3xxx cũ."
+    },
+    "figures": [
+      {
+        "id": "6c05ba84988a42219a25d0c3330de8728ec86109bf7cea8b0312bada3099834f",
+        "w": 1448,
+        "h": 1086,
+        "after": "kiem-tra-pin-laptop",
+        "alt": "Máy tính xách tay cách điệu nằm cạnh thẻ báo cáo tượng trưng với hai biểu tượng pin và một kính lúp.",
+        "caption": "Dùng báo cáo pin của Windows để kiểm tra tình trạng pin."
+      }
+    ]
+  }
+}

@@ -1,0 +1,394 @@
+{
+  "slug": "used-dell-24-inch-monitor",
+  "title": "Used Dell 24-Inch Monitor: Models, Prices, Checks",
+  "description": "Used Dell 24-inch monitors in Vietnam: which model is which, shop resale prices from November 2026, and how to check the service tag, ports and pixels.",
+  "h1": "Used Dell 24-inch monitors: the models, what shops charge and what to check before you buy",
+  "eyebrow": "Used electronics",
+  "intro": "Most used Dell 24-inch monitors are 23.8-inch IPS screens such as the P2419H, U2419H and S2421HN, and Vietnamese shops reselling them in November 2026 gave 3 to 6 months' warranty. Check the model letters and the service tag on the back label before you message a seller. The letters tell you the ports, the refresh rate and whether the monitor can charge a laptop.",
+  "keyPoints": [
+    "Dell's 24-inch class has a **60.47 cm (23.8-inch)** viewable diagonal, according to Dell's own spec page for the P2425H. \"24\" is the size class in Dell's own product name (\"Dell 24 Monitor\"), rounded up from 23.8.",
+    "On 27 November 2026, used units at HACOM and CellphoneS were priced from {{vnd:2290000}} (S2421HN) to {{vnd:3990000}} (U2421E). A new U2424H was {{vnd:4890000}} at CellphoneS.",
+    "Monitors made since 2016 have a **Service Tag** on the rear label and in the on-screen menu, and you can look it up on Dell's support site. According to Dell, monitors made before 2016 have only a serial number.",
+    "Under Dell's pixel guidelines, a single bright pixel gets a covered monitor's panel replaced during warranty. Up to 5 dark subpixels count as normal on most models.",
+    "Only some models charge a laptop. The U2421E's USB-C port supplies 90 W, but Dell says the P2425H's USB-C port is data only, with up to 15 W."
+  ],
+  "sections": [
+    {
+      "id": "which-dell-24-inch-model",
+      "title": "Which Dell 24-inch monitor is which?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Dell, the US computer maker, sells several 24-inch monitor lines, and the letters at the start of the model name tell you which one you have. Dell's pixel guidelines name **U** as UltraSharp, **P** as the Dell Pro P series, **S** as the S series and **G** as gaming monitors. Second-hand listings in Vietnam are mostly P, U and S models."
+        },
+        {
+          "type": "p",
+          "text": "Every model below has an IPS panel of 23.8 inches (24.1 inches on the 16:10 U2421E) and a VESA 100 x 100 mm mount, so any standard monitor arm fits. The differences are resolution, refresh rate and ports, and those matter more than the series name."
+        },
+        {
+          "type": "table",
+          "caption": "Dell 24-inch models commonly resold in Vietnam (specs from the Dell and retailer pages listed in Sources, read 27 November 2026)",
+          "headers": [
+            "Model",
+            "Resolution and refresh",
+            "Ports worth knowing",
+            "Spec source"
+          ],
+          "rows": [
+            [
+              "P2419H",
+              "1920 x 1080, 60 Hz",
+              "DisplayPort 1.2, HDMI 1.4, VGA, USB hub",
+              "HACOM"
+            ],
+            [
+              "U2419H",
+              "1920 x 1080, 60 Hz",
+              "DisplayPort 1.4 in, DisplayPort out (MST), HDMI 1.4, USB 3.0, audio out",
+              "HACOM"
+            ],
+            [
+              "S2421HN",
+              "1920 x 1080, 75 Hz, FreeSync",
+              "2 x HDMI, audio out; no DisplayPort",
+              "CellphoneS"
+            ],
+            [
+              "U2421E",
+              "1920 x 1200 (16:10), 60 Hz",
+              "USB-C with 90 W, DisplayPort in and out, HDMI, Ethernet (RJ-45)",
+              "CellphoneS"
+            ],
+            [
+              "P2423D",
+              "2560 x 1440, 60 Hz",
+              "DisplayPort 1.2, HDMI, USB hub",
+              "CellphoneS"
+            ],
+            [
+              "P2425H (current)",
+              "1920 x 1080, up to 100 Hz",
+              "HDMI 1.4, DisplayPort 1.2, VGA, USB-C (data, 15 W)",
+              "Dell"
+            ],
+            [
+              "U2424H (current)",
+              "1920 x 1080, 120 Hz",
+              "2 x DisplayPort 1.4, HDMI 1.4, 2 x USB-C",
+              "CellphoneS"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Does the full model name matter, or just the series?"
+        },
+        {
+          "type": "p",
+          "text": "The full model name matters, because models in the same series differ. The P2419H runs at 60 Hz with no USB-C. Dell's current P2425H, in the same P series and the same size, goes up to 100 Hz and has a USB-C port. If a seller writes \"Dell P24\" or \"Dell UltraSharp 24\", ask for the exact model before you compare prices."
+        }
+      ]
+    },
+    {
+      "id": "used-dell-24-inch-monitor-prices",
+      "title": "What does a used Dell 24-inch monitor cost in Vietnam?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "On 27 November 2026, Vietnamese shops priced used Dell 24-inch monitors from {{vnd:2290000}} to {{vnd:3990000}}, with 3 to 6 months of shop warranty. Several of these listings were out of stock, so treat the prices as a benchmark, not as stock you can buy today."
+        },
+        {
+          "type": "table",
+          "caption": "Shop prices for Dell 24-inch monitors, as read on the retailers' pages on 27 November 2026 (VAT included)",
+          "headers": [
+            "Model and condition",
+            "Shop",
+            "Price",
+            "Shop warranty"
+          ],
+          "rows": [
+            [
+              "S2421HN, used",
+              "CellphoneS",
+              "{{vnd:2290000}} (out of stock)",
+              "6 months"
+            ],
+            [
+              "P2419H, used, no box",
+              "HACOM",
+              "{{vnd:2299000}}",
+              "3 months"
+            ],
+            [
+              "U2419H, used",
+              "HACOM",
+              "{{vnd:3499000}}",
+              "3 months"
+            ],
+            [
+              "U2421E, used",
+              "CellphoneS",
+              "{{vnd:3990000}} (out of stock)",
+              "6 months"
+            ],
+            [
+              "P2423D, used",
+              "CellphoneS",
+              "Price on request",
+              "6 months"
+            ],
+            [
+              "U2424H, new",
+              "CellphoneS",
+              "{{vnd:4890000}}",
+              "36 months (manufacturer)"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "A shop's price includes a warranty, a VAT invoice and a 15- or 30-day exchange for hardware defects (CellphoneS). A private sale usually comes with none of these. Before you agree a price with a private seller, compare it with the shop price for the same model and decide what that missing warranty is worth to you."
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "The stand is often missing",
+          "text": "HACOM sold its used P2419H **without the original box**. CellphoneS said its used S2421HN came with only the power cable. Ask whether the stand and a video cable are included, because a monitor without a stand needs a VESA arm."
+        }
+      ]
+    },
+    {
+      "id": "check-the-exact-model",
+      "title": "How do I check the exact model before messaging a seller?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Ask the seller for a clear photo of the label on the back of the monitor. According to Dell, the label shows the model, the Service Tag, the Express Service Code and the serial number. The model on the label should match the model in the listing title."
+        },
+        {
+          "type": "p",
+          "text": "Dell says you can also find the Service Tag in the monitor's on-screen display (OSD) menu. Monitors made before 2016 have no Service Tag or Express Service Code, only a serial number. If the label has no tag, the monitor is probably older, which the seller should tell you."
+        },
+        {
+          "type": "h3",
+          "text": "What can the Service Tag tell me?"
+        },
+        {
+          "type": "p",
+          "text": "Enter the Service Tag on [Dell's support site](https://www.dell.com/support/contents/en-us/article/product-support/self-support-knowledgebase/locate-service-tag/projectors-monitors) to find the exact model, its user guide and its drivers. Dell says its technical support needs the serial number for warranty service, so note that too. Whether warranty from another country is honoured in Vietnam is a question for Dell support, with the tag in hand. If the site does not recognise the tag, Dell says to check for characters that are easy to confuse: O and 0, l and 1, B and 8."
+        }
+      ]
+    },
+    {
+      "id": "checks-at-the-viewing",
+      "title": "What to check when you see the monitor",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Run Dell's built-in self-test, look for bright pixels on plain colours, and try every port you plan to use. Doing all three takes about ten minutes. Bring your own laptop and cable."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Match the label",
+              "text": "Check that the model and Service Tag on the rear label match the photo the seller sent and the model in the OSD menu."
+            },
+            {
+              "title": "Run the built-in diagnostics",
+              "text": "Dell's built-in self-test (BIST) shows whether a fault is in the monitor itself. The steps differ by model: open the user guide at Dell.com/support/manuals, go to the Troubleshooting section and follow the \"Built-in diagnostics\" page. Dell says that if the fault still shows during the test, the monitor needs repair."
+            },
+            {
+              "title": "Look for bright and dark pixels",
+              "text": "During the test, or with full-screen white, black, red, green and blue images, look closely for dots that stay lit or stay dark."
+            },
+            {
+              "title": "Try your ports",
+              "text": "Connect your laptop through the port you will use every day: HDMI, DisplayPort or USB-C. On a USB-C model, check that the laptop charges if you are relying on that."
+            },
+            {
+              "title": "Check the stand and buttons",
+              "text": "If the stand is included, check that it tilts and holds its position. Check that the joystick or buttons open the menu."
+            }
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Will Dell replace a panel with a dead pixel?"
+        },
+        {
+          "type": "p",
+          "text": "Dell replaces a panel for a single bright pixel, but only while the warranty runs. Under its [Premium Panel Exchange](https://www.dell.com/support/kbdoc/en-us/000126004/dell-display-pixel-guidelines) for UltraSharp, Pro P and 2020-or-newer S-series monitors, among others, Dell says \"Zero allowed—we'll replace the display even for one bright pixel\". Up to 5 dark subpixels count as normal on most covered models. So a used monitor with a few dark dots would not qualify for a new panel even if it were still under warranty."
+        }
+      ]
+    },
+    {
+      "id": "which-model-for-a-laptop",
+      "title": "Which used Dell 24-inch suits a laptop?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "If you want one cable that charges your laptop and carries the picture, the U2421E is the model in this guide that does it. CellphoneS lists its USB-C port at 90 W. Dell lists the P2425H's USB-C port as data only, with up to 15 W, so it will not charge most laptops."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**HDMI-only laptops:** the S2421HN has two HDMI ports and no DisplayPort, which suits a laptop with an HDMI port. It also suits a laptop plus a games console.",
+            "**Two monitors from one cable:** the U2419H and U2421E have a DisplayPort output with MST, which lets you chain a second screen.",
+            "**Older office PCs:** the P2419H and P2425H still have VGA.",
+            "**More screen space:** the U2421E's 1920 x 1200 gives a little more height than Full HD. The P2423D's 2560 x 1440 gives noticeably more."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "If you are still choosing the laptop, see [Dell Inspiron or Vostro](/guides/dell-inspiron-vs-vostro) and [HP vs Lenovo for a used laptop](/guides/hp-vs-lenovo-used-laptop)."
+        }
+      ]
+    },
+    {
+      "id": "buying-on-eno",
+      "title": "Finding a used Dell monitor on eno.vn",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "eno.vn is a classifieds marketplace for expats and locals in Vietnam. Monitors are listed in the [Electronics category](/c/electronics). Message the seller on eno.vn to ask for the rear-label photo and the full model name before you arrange a viewing."
+        },
+        {
+          "type": "p",
+          "text": "Meet somewhere you can plug the monitor in and test it before you pay. eno.vn's [safety page](/safety) covers meeting sellers. If you are leaving Vietnam and selling your own monitor, you can [post a listing](/post), and the [selling up before you leave](/selling-up-before-you-leave-vietnam) guide covers the rest of your belongings."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Put the label in your listing",
+          "text": "If you are selling, photograph the rear label, the stand and the screen showing a white image. Buyers who can see the model and the Service Tag know exactly what they are comparing."
+        }
+      ]
+    },
+    {
+      "id": "what-this-guide-does-not-cover",
+      "title": "What this guide does not cover",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Dell 27-inch and larger monitors, and other brands. Their prices and models differ from those above.",
+            "Whether a particular Dell warranty is still active or transfers to you. Only Dell support can tell you that, from the Service Tag.",
+            "Repairing a faulty panel or backlight. Ask Dell support or a repair shop for a quote."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Is a used Dell 24 inch monitor worth buying?",
+      "a": "A used Dell 24-inch monitor is usually a 23.8-inch IPS screen with a VESA 100 x 100 mm mount and DisplayPort or HDMI. In November 2026, Vietnamese shops including HACOM and CellphoneS resold models such as the P2419H, U2419H and S2421HN with 3 to 6 months' warranty. The main risks with a used Dell monitor are panel faults and a missing stand, and you can check both at a viewing."
+    },
+    {
+      "q": "How do I check the warranty on a used Dell monitor?",
+      "a": "To check the warranty on a used Dell monitor, find the Service Tag on the label on the back or in the on-screen menu, then enter it on Dell's support site. According to Dell, monitors made before 2016 have no Service Tag, only a serial number, and Dell technical support uses that serial number for warranty questions. Ask Dell support whether a warranty from another country is honoured in Vietnam."
+    },
+    {
+      "q": "What is the difference between Dell P2419H and U2419H?",
+      "a": "The Dell P2419H and U2419H are both 23.8-inch Full HD IPS monitors running at 60 Hz. According to HACOM's listings, the U2419H adds DisplayPort 1.4, a DisplayPort output for chaining a second screen, and an audio out. The P2419H keeps a VGA port for older computers. On 27 November 2026, HACOM priced the used U2419H higher than the used P2419H."
+    },
+    {
+      "q": "Is a Dell 24 inch monitor really 24 inches?",
+      "a": "A Dell 24-inch monitor has a viewable diagonal of 60.47 cm, or 23.8 inches, according to Dell's own spec page for the P2425H. The \"24 inch\" in the name is a size class. Dell itself sells the P2425H as the \"Dell 24 Monitor\", and retailers such as CellphoneS round the size up to 24 inches."
+    },
+    {
+      "q": "Can a Dell 24 inch monitor charge a laptop over USB-C?",
+      "a": "Only some Dell 24-inch monitors can charge a laptop over USB-C. CellphoneS lists the Dell U2421E's USB-C port at 90 W, which is enough for many laptops. Dell lists the P2425H's USB-C port as data only, with up to 15 W. The P2419H, U2419H and S2421HN have no USB-C port. Test charging with your own laptop before you buy."
+    },
+    {
+      "q": "How many dead pixels are acceptable on a Dell monitor?",
+      "a": "Under Dell's display pixel guidelines, a covered Dell monitor may have up to 5 dark subpixels on most models and still count as normal. A single bright pixel qualifies for a panel replacement under Premium Panel Exchange, but only while the warranty runs. The covered lines include UltraSharp, Dell Pro P and 2020-or-newer S-series monitors. For a used monitor out of warranty, any dot you can see is the buyer's to live with."
+    },
+    {
+      "q": "How do I test a used Dell monitor before buying?",
+      "a": "To test a used Dell monitor, run its built-in self-test, which Dell describes step by step in each model's user guide at Dell.com/support/manuals under Troubleshooting. According to Dell, a fault that still shows during the self-test is in the monitor itself. Then check plain white, black and colour screens for stuck dots. Finally, plug in your own laptop through every port you plan to use."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Locate Your Monitor's Service Tag",
+      "publisher": "Dell Technologies",
+      "url": "https://www.dell.com/support/contents/en-us/article/product-support/self-support-knowledgebase/locate-service-tag/projectors-monitors"
+    },
+    {
+      "title": "Dell Display Pixel Guidelines",
+      "publisher": "Dell Technologies",
+      "url": "https://www.dell.com/support/kbdoc/en-us/000126004/dell-display-pixel-guidelines"
+    },
+    {
+      "title": "How to Run a Diagnostic Test on a Dell Monitor",
+      "publisher": "Dell Technologies",
+      "url": "https://www.dell.com/support/kbdoc/en-us/000124390"
+    },
+    {
+      "title": "Dell 24 Monitor - P2425H",
+      "publisher": "Dell Technologies",
+      "url": "https://dell.com/en-hr/shop/dell-monitors/dell-24-monitor-p2425h/spd/p2425h-monitor"
+    },
+    {
+      "title": "Màn hình Dell P2419H cũ đẹp không vỏ hộp",
+      "publisher": "HACOM",
+      "url": "https://hacom.vn/man-hinh-dell-p2419h-cu-dep-khong-vo-hop-86477-89605"
+    },
+    {
+      "title": "Màn hình Dell UltraSharp U2419H cũ đẹp",
+      "publisher": "HACOM",
+      "url": "https://hacom.vn/man-hinh-dell-ultrasharp-u2419h-cu-dep"
+    },
+    {
+      "title": "Màn hình Dell S2421HN 24 inch cũ đẹp",
+      "publisher": "CellphoneS",
+      "url": "https://cellphones.com.vn/man-hinh-dell-s2421hn-24-inch-cu-dep.html"
+    },
+    {
+      "title": "Màn hình Dell U2421E 24 inch cũ đẹp",
+      "publisher": "CellphoneS",
+      "url": "https://cellphones.com.vn/man-hinh-dell-u2421e-24-inch-cu-dep.html"
+    },
+    {
+      "title": "Màn hình Dell P2423D 24 inch cũ đẹp",
+      "publisher": "CellphoneS",
+      "url": "https://cellphones.com.vn/man-hinh-dell-p2423d-24-inch-cu-dep.html"
+    },
+    {
+      "title": "Màn hình Dell UltraSharp U2424H 24 inch",
+      "publisher": "CellphoneS",
+      "url": "https://cellphones.com.vn/man-hinh-dell-u2424h-24-inch.html"
+    }
+  ],
+  "related": [],
+  "lastChecked": "2026-11-27",
+  "images": {
+    "hero": {
+      "id": "3dc4b0ab5e9d1249cec9fad4b65f013f4bdc0fa8720520549d71bdc204c2a97e",
+      "w": 1672,
+      "h": 941,
+      "alt": "A flat illustration shows front and rear views of desktop monitors beside a cable, magnifying glass and plant.",
+      "caption": "Choosing and checking a used Dell 24-inch monitor."
+    },
+    "figures": [
+      {
+        "id": "b55443672bc346a6877800ddec60bdf7a708f42f935039a53e211464e9b60ad1",
+        "w": 1448,
+        "h": 1086,
+        "after": "check-the-exact-model",
+        "alt": "A hand holds a magnifying glass over a blank rear label, with connector ports below on an illustrated monitor.",
+        "caption": "Check the rear label and ports before messaging a seller."
+      },
+      {
+        "id": "70eacb76b4838766f5b6d329f582d3ba6c3b96ef61c03730758880f6f934f0ad",
+        "w": 1448,
+        "h": 1086,
+        "after": "checks-at-the-viewing",
+        "alt": "A magnifying glass highlights screen pixels while a hand touches the monitor base beside a loose display cable.",
+        "caption": "Inspect the screen, stand and connections when viewing a used monitor."
+      }
+    ]
+  }
+}

@@ -1,0 +1,425 @@
+{
+  "slug": "van-mieu-quoc-tu-giam-gia-ve-gio-mo-cua",
+  "title": "Văn Miếu Quốc Tử Giám: giá vé, giờ mở cửa, tour đêm",
+  "description": "Giá vé Văn Miếu – Quốc Tử Giám ban ngày và tour đêm theo trang chính thức, giờ mở cửa, đường tham quan, quy định trang phục và giờ vắng khách nhất.",
+  "h1": "Văn Miếu – Quốc Tử Giám: giá vé, giờ mở cửa và kinh nghiệm tham quan",
+  "eyebrow": "Tham quan Hà Nội",
+  "intro": "Văn Miếu – Quốc Tử Giám nằm ở số 58 phố Quốc Tử Giám, Hà Nội, mở cửa hằng ngày từ 8:00 đến 17:00, và trẻ em dưới 16 tuổi được miễn vé. Đây là di tích thờ Khổng Tử được xây năm 1070, có 82 tấm bia tiến sĩ. Vé ban ngày mua tại quầy hoặc mua online tại vanmieu.gov.vn/vi/tickets, thanh toán bằng mã QR qua ứng dụng ngân hàng hoặc ví điện tử Việt Nam. Tour đêm bán vé riêng và chạy vào tối thứ Tư, thứ Bảy, Chủ nhật. Bạn nên dành khoảng 60 đến 90 phút để đi hết các khu chính.",
+  "keyPoints": [
+    "Theo trang chính thức vanmieu.gov.vn (tháng 11/2026), vé ban ngày có ba mức: vé thường {{vnd:70000}}, vé ưu tiên {{vnd:35000}}, và trẻ em dưới 16 tuổi được miễn vé.",
+    "Vé ưu tiên dành cho học sinh, sinh viên có thẻ, người từ 60 tuổi trở lên có CCCD, và một số trường hợp người khuyết tật hoặc người hưởng chính sách. Nhớ mang giấy tờ khi đi.",
+    "Trang chính thức ghi giờ mở cửa ban ngày là 8:00–17:00 mỗi ngày. Tour đêm chạy tối thứ Tư, thứ Bảy, Chủ nhật, giá từ {{vnd:299000}} cho người lớn, và loại vé tính theo chiều cao chứ không theo tuổi.",
+    "Giờ vắng nhất là 8:00–9:30 sáng các ngày trong tuần. Nên tránh khung 11:00–14:00 vì trời nóng và lối đi ít bóng râm.",
+    "Mặc đồ che vai và đầu gối. Không chạm, không viết vẽ lên bia đá và cụ rùa đội bia."
+  ],
+  "sections": [
+    {
+      "id": "van-mieu-quoc-tu-giam-o-dau",
+      "title": "Văn Miếu – Quốc Tử Giám ở đâu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Văn Miếu – Quốc Tử Giám nằm ở trung tâm Hà Nội. Cổng chính ở **số 58 phố Quốc Tử Giám**, cách hồ Hoàn Kiếm khoảng 2–3 km về phía tây. Văn Miếu là nơi thờ Khổng Tử. Quốc Tử Giám là nhà Thái học được dựng ngay bên cạnh, và VnExpress gọi đây là trường đại học quốc gia đầu tiên của Việt Nam."
+        },
+        {
+          "type": "p",
+          "text": "Di tích do Trung tâm Hoạt động Văn hóa Khoa học Văn Miếu – Quốc Tử Giám thuộc thành phố Hà Nội quản lý. Trang chính thức là [vanmieu.gov.vn](https://vanmieu.gov.vn/en). Theo [trang lịch sử di tích](https://vanmieu.gov.vn/en/introduction/site-history), Văn Miếu được xây năm 1070 dưới thời vua Lý Thánh Tông, còn Quốc Tử Giám do vua Lý Nhân Tông lập năm 1076."
+        },
+        {
+          "type": "p",
+          "text": "Nhiều người vẫn nói Văn Miếu ở quận Đống Đa. Từ tháng 7/2025, Hà Nội bỏ cấp quận, nên trang chính thức hiện ghi địa chỉ là **phường Văn Miếu – Quốc Tử Giám**, Hà Nội. Di tích có hai lối ra. Lối thứ nhất ở số 19–21 phố Văn Miếu. Lối thứ hai đi qua Vườn Giám, ra đối diện số 40 Tôn Đức Thắng."
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Ở Hà Nội, không phải TP.HCM",
+          "text": "Văn Miếu – Quốc Tử Giám ở Hà Nội. Nếu bạn đang cân nhắc nên sống ở thành phố nào, xem bài [các thành phố lớn ở Việt Nam: nên sống ở đâu](/huong-dan/cac-thanh-pho-lon-viet-nam-nen-song-o-dau)."
+        }
+      ]
+    },
+    {
+      "id": "gia-ve-van-mieu-quoc-tu-giam",
+      "title": "Giá vé Văn Miếu – Quốc Tử Giám bao nhiêu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Vé thường giá {{vnd:70000}}, vé ưu tiên giá {{vnd:35000}}, và trẻ em dưới 16 tuổi được miễn vé. Đây là giá trên [trang thông tin tham quan chính thức](https://vanmieu.gov.vn/introduction/visitor-information), kiểm tra ngày 27/11/2026."
+        },
+        {
+          "type": "table",
+          "caption": "Vé tham quan ban ngày Văn Miếu – Quốc Tử Giám, theo vanmieu.gov.vn, kiểm tra ngày 27/11/2026",
+          "headers": [
+            "Loại vé",
+            "Giá",
+            "Đối tượng",
+            "Giấy tờ cần mang"
+          ],
+          "rows": [
+            [
+              "Vé thường",
+              "{{vnd:70000}}",
+              "Khách người lớn",
+              "Không cần"
+            ],
+            [
+              "Vé ưu tiên",
+              "{{vnd:35000}}",
+              "Học sinh, sinh viên các trường của Việt Nam; người từ 60 tuổi trở lên; người khuyết tật nặng; người hưởng chính sách ưu đãi hưởng thụ văn hóa",
+              "Thẻ học sinh, sinh viên; CCCD; giấy tờ chứng minh theo quy định"
+            ],
+            [
+              "Miễn vé",
+              "{{vnd:0}}",
+              "Trẻ em dưới 16 tuổi; người khuyết tật đặc biệt nặng",
+              "Giấy tờ chứng minh khi cần"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Học sinh, sinh viên và người cao tuổi cần mang gì để mua vé ưu tiên?"
+        },
+        {
+          "type": "p",
+          "text": "Học sinh và sinh viên cần mang thẻ học sinh, sinh viên. Người từ 60 tuổi trở lên cần mang CCCD. Trang chính thức không nhắc tới thẻ sinh viên nước ngoài hay hộ chiếu. Nếu bạn đi cùng bạn bè là người nước ngoài, hãy hỏi quầy vé trước khi tính đến mức giá ưu tiên cho họ."
+        },
+        {
+          "type": "h3",
+          "text": "Quầy vé có nhận chuyển khoản hay quẹt thẻ không?"
+        },
+        {
+          "type": "p",
+          "text": "Trang chính thức có bán vé ban ngày online (vanmieu.gov.vn/vi/tickets): thanh toán bằng mã QR qua ứng dụng ngân hàng hoặc ví điện tử Việt Nam, ảnh QR vé gửi vào email và có hiệu lực 30 ngày. Trang không nói quầy vé nhận hình thức thanh toán nào. Theo bài hướng dẫn của Vietnam Tourism cập nhật ngày 24/10/2026, quầy vé chỉ nhận tiền mặt, không có máy quẹt thẻ, và trong khuôn viên không có ATM. Bạn nên mang sẵn tiền lẻ."
+        },
+        {
+          "type": "p",
+          "text": "VnExpress (tháng 11/2024) cho biết thuê thuyết minh tự động bằng tiếng nước ngoài tốn thêm {{vnd:100000}}. Con số này chưa được xác nhận lại, nên hãy hỏi quầy khi đến."
+        }
+      ]
+    },
+    {
+      "id": "van-mieu-mo-cua-may-gio",
+      "title": "Văn Miếu mở cửa mấy giờ, nên đi lúc nào?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Theo vanmieu.gov.vn (tháng 11/2026), Văn Miếu – Quốc Tử Giám mở cửa hằng ngày từ 8:00 đến 17:00. Nếu muốn vắng khách, hãy đến vào 8:00–9:30 sáng một ngày trong tuần, trước khi các đoàn tham quan tới."
+        },
+        {
+          "type": "p",
+          "text": "Các nguồn khác ghi giờ mở cửa khác nhau. Bài của VnExpress (tháng 11/2024) ghi giờ mùa hè là 7:30–17:30, từ giữa tháng 4 đến giữa tháng 10, và giờ mùa đông là 8:00–17:00. Vietnam Tourism (tháng 10/2026) ghi 8:00–17:00 và vào cửa muộn nhất lúc 16:30. Vì vậy bạn nên theo giờ chính thức và có mặt trước 16:30."
+        },
+        {
+          "type": "table",
+          "caption": "Mức đông khách theo khung giờ, theo Vietnam Tourism (cập nhật 24/10/2026)",
+          "headers": [
+            "Khung giờ",
+            "Tình hình"
+          ],
+          "rows": [
+            [
+              "8:00–9:30 ngày thường",
+              "Vắng nhất, dễ chụp ảnh khu bia tiến sĩ"
+            ],
+            [
+              "9:00–11:00 trong năm học",
+              "Các đoàn học sinh kín sân"
+            ],
+            [
+              "Từ khoảng 10:00",
+              "Các đoàn khách du lịch đến"
+            ],
+            [
+              "11:00–14:00",
+              "Nóng nhất trong ngày"
+            ],
+            [
+              "Tháng 10 đến tháng 4",
+              "Thời tiết dễ chịu nhất; tháng 5 đến tháng 9 nóng ẩm, có lúc mưa lớn"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Đi hết Văn Miếu mất bao lâu?"
+        },
+        {
+          "type": "p",
+          "text": "Đi hết Văn Miếu mất khoảng 1 tiếng nếu đi nhanh, và 90 phút nếu muốn thong thả, tính cả Vườn Giám. Đây là gợi ý của Vietnam Tourism (tháng 10/2026). Bài này cũng cho biết phần đông khách chỉ ở lại 45–60 phút."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Dịp Tết có thể đóng cửa",
+          "text": "Theo Vietnam Tourism, quanh Tết Nguyên đán di tích rất đông và có thể đóng cửa vài ngày. Trang chính thức không công bố lịch nghỉ lễ, nên nếu bạn đi vào cuối tháng 1 hoặc tháng 2, hãy kiểm tra trên vanmieu.gov.vn trước."
+        }
+      ]
+    },
+    {
+      "id": "tour-dem-van-mieu",
+      "title": "Tour đêm Văn Miếu có gì, giá vé bao nhiêu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Tour đêm Văn Miếu là chương trình buổi tối, bán vé riêng, có trình chiếu 3D mapping mang tên \"Tinh hoa đạo học\". Theo trang thông tin tham quan chính thức, tour chạy từ 18:30 đến 22:00 vào tối thứ Tư, thứ Bảy và Chủ nhật. Trang tiếng Anh lại ghi 18:00–22:00, nên bạn hãy hỏi giờ chiếu khi đặt vé."
+        },
+        {
+          "type": "p",
+          "text": "Theo [trang tour đêm chính thức](https://vanmieu.gov.vn/experience/night-tour), lộ trình đi từ Văn Miếu Môn qua Đại Trung Môn, Khuê Văn Các và giếng Thiên Quang. Đến vườn bia, khách dừng ở tấm bia năm 1484. Sau đó khách gặp thầy đồ, tìm hiểu văn phòng tứ bảo và tập viết thư pháp, in hình Khuê Văn Các lên giấy dó, trải nghiệm không gian thực tế ảo, và cuối cùng xem show 3D mapping."
+        },
+        {
+          "type": "table",
+          "caption": "Giá vé tour đêm Văn Miếu, theo vanmieu.gov.vn, kiểm tra ngày 27/11/2026",
+          "headers": [
+            "Gói",
+            "Người lớn (cao trên 1,3 m)",
+            "Trẻ em (cao 1,0–1,3 m)"
+          ],
+          "rows": [
+            [
+              "1 show",
+              "{{vnd:299000}}",
+              "{{vnd:149000}}"
+            ],
+            [
+              "2 show",
+              "{{vnd:399000}}",
+              "{{vnd:199000}}"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Trẻ em cao dưới 1,0 m được miễn vé. Trang chính thức không nói show thứ hai trong gói 2 show là gì và tour kéo dài bao lâu, nên bạn hãy hỏi khi đặt vé."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Mở trang tour đêm",
+              "text": "Vào mục tour đêm trên vanmieu.gov.vn để xem chương trình và giá."
+            },
+            {
+              "title": "Liên hệ đặt vé",
+              "text": "Đặt online tại vanmieu.gov.vn/vi/night-tours: chọn ngày, suất chiếu và số vé, thanh toán qua OnePay, thông tin vé gửi qua email. Hoặc gọi các số đường dây nóng ghi trên trang tour đêm."
+            },
+            {
+              "title": "Chọn số vé theo chiều cao",
+              "text": "Tính vé theo các mốc chiều cao ở bảng trên, không tính theo tuổi."
+            },
+            {
+              "title": "Đọc chính sách hoàn tiền",
+              "text": "Trang có liên kết tới chính sách chấm dứt dịch vụ và hoàn tiền. Hãy đọc trước khi trả tiền nếu kế hoạch của bạn có thể thay đổi."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "van-mieu-co-gi",
+      "title": "Trong Văn Miếu có gì để xem?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Văn Miếu gồm nhiều lớp sân có tường bao, và bạn đi thẳng một mạch từ cổng vào trong. Những điểm đáng xem nhất là Khuê Văn Các, khu 82 bia tiến sĩ quanh giếng Thiên Quang, điện Đại Thành và khu Thái Học."
+        },
+        {
+          "type": "ol",
+          "items": [
+            "**Văn Miếu Môn và Đại Trung Môn**, hai lớp cổng dẫn vào những khoảng sân đầu tiên.",
+            "**Khuê Văn Các.** Theo Vietnam Tourism, gác này được dựng năm 1805.",
+            "**Vườn bia quanh giếng Thiên Quang.** Theo Cổng thông tin Chính phủ, 82 tấm bia đặt trên lưng rùa đá ghi tên 1.304 tiến sĩ đỗ các khoa thi từ năm 1442 đến 1779. Ngày 26/5/2011, hệ thống bia được UNESCO ghi vào danh mục Di sản tư liệu thế giới.",
+            "**Điện Đại Thành**, nơi thờ Khổng Tử và các học trò. Đây vẫn là nơi thờ tự đang được dùng.",
+            "**Khu Thái Học**, xây trên nền Quốc Tử Giám xưa. Theo trang chính thức, công trình này được khởi công năm 1999.",
+            "**Vườn Giám**, lối ra phía phố Tôn Đức Thắng."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Trang tiếng Anh của di tích có giới thiệu chương trình giáo dục di sản và trải nghiệm thư pháp, đều đánh dấu là không mất phí. Tuy vậy, trang không ghi giờ cụ thể, nên bạn hãy hỏi quầy thông tin khi đến. Trong khuôn viên có hiệu sách và quầy đồ lưu niệm."
+        }
+      ]
+    },
+    {
+      "id": "di-van-mieu-mac-gi",
+      "title": "Đi Văn Miếu mặc gì, có quy định gì?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Bạn nên mặc kín đáo, che vai và đầu gối, vì Văn Miếu vẫn là nơi thờ tự. Nội quy chính thức yêu cầu trang phục lịch sự khi vào nơi thờ tự và giữ yên lặng ở những khu trang nghiêm. Theo Vietnam Tourism (tháng 10/2026), nhân viên không cho vào nếu khách mặc áo hai dây, áo quây, áo hở bụng, quần short ngắn trên giữa đùi hoặc váy trên đầu gối."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "Không chạm, viết hay vẽ lên hiện vật, bia đá và công trình. Theo nội quy, khách phải chịu trách nhiệm nếu gây hư hại.",
+            "Không giẫm lên cỏ, không hái hoa, bẻ cành.",
+            "Không hút thuốc trong khuôn viên.",
+            "VnExpress (tháng 11/2024) nhắc không mang đồ ăn, thức uống vào trong, chỉ thắp một nén hương ở đúng nơi quy định, và không xoa đầu rùa hay ngồi lên bia.",
+            "Theo Vietnam Tourism, khách không chụp ảnh ngay trước ban thờ chính và phải bỏ mũ khi vào trong điện."
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Mang theo áo khoác mỏng",
+          "text": "Hãy bỏ sẵn một chiếc áo mỏng hoặc khăn choàng vào túi. Theo Vietnam Tourism, khăn quấn bán ở ngoài cổng có giá khoảng {{vnd:50000}} nhưng chất lượng kém và ít màu để chọn."
+        }
+      ]
+    },
+    {
+      "id": "duong-den-van-mieu",
+      "title": "Đi đến Văn Miếu bằng xe buýt, metro hay xe máy?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Cách dễ nhất là đi taxi hoặc Grab tới số 58 Quốc Tử Giám. Nếu muốn đi phương tiện công cộng, tuyến buýt 38 dừng ngay trước cổng. Theo VnExpress, đi bộ từ hồ Hoàn Kiếm mất khoảng 15 phút."
+        },
+        {
+          "type": "table",
+          "caption": "Cách đến Văn Miếu, theo trang chính thức (kiểm tra 27/11/2026) và VnExpress (tháng 11/2024)",
+          "headers": [
+            "Phương tiện",
+            "Điểm dừng hoặc chỗ gửi xe"
+          ],
+          "rows": [
+            [
+              "Buýt 38",
+              "Điểm dừng tại số 58 Quốc Tử Giám (trang chính thức)"
+            ],
+            [
+              "Buýt 02, 41, E08, E09",
+              "Điểm dừng đối diện số 40 Tôn Đức Thắng, cạnh lối Vườn Giám (trang chính thức)"
+            ],
+            [
+              "Metro tuyến 2A",
+              "Ga Cát Linh, cách khoảng 700 m (VnExpress, 2024)"
+            ],
+            [
+              "Xe máy, xe đạp",
+              "Gửi tại Vườn Giám (trang chính thức)"
+            ],
+            [
+              "Ô tô, xe khách",
+              "Đỗ dọc phố Văn Miếu (trang chính thức)"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Muốn xem thêm vé tham quan và du lịch đang đăng trên eno.vn, hãy vào mục [Vé và du lịch](/c/tickets-travel)."
+        }
+      ]
+    },
+    {
+      "id": "bai-nay-khong-de-cap",
+      "title": "Bài này không đề cập",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Lịch đóng cửa ngày lễ và các sự kiện đặc biệt: trang chính thức không công bố lịch, nên trước Tết và các dịp lễ hãy kiểm tra vanmieu.gov.vn.",
+            "Tour có hướng dẫn viên riêng và giá của các tour này: đây là dịch vụ của các công ty du lịch, không phải của di tích, và giá mỗi nơi một khác.",
+            "Lịch sử khoa cử đầy đủ: xem [trang lịch sử di tích](https://vanmieu.gov.vn/en/introduction/site-history).",
+            "Thuê nhà ở Hà Nội: xem bài [thuê căn hộ Tây Hồ](/huong-dan/thue-can-ho-tay-ho)."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Văn Miếu Quốc Tử Giám ở đâu?",
+      "a": "Văn Miếu – Quốc Tử Giám ở số 58 phố Quốc Tử Giám, trung tâm Hà Nội, cách hồ Hoàn Kiếm khoảng 2–3 km về phía tây. Từ tháng 7/2025, địa chỉ chính thức của di tích thuộc phường Văn Miếu – Quốc Tử Giám, dù nhiều người vẫn gọi là quận Đống Đa. Tuyến buýt 38 dừng trước cổng, còn ga Cát Linh của metro tuyến 2A cách khoảng 700 m."
+    },
+    {
+      "q": "Giá vé Văn Miếu Quốc Tử Giám 2026 bao nhiêu?",
+      "a": "Theo trang chính thức vanmieu.gov.vn, tính đến tháng 11/2026, vé tham quan ban ngày Văn Miếu – Quốc Tử Giám có ba mức: vé thường, vé ưu tiên bằng nửa giá vé thường, và miễn vé cho trẻ em dưới 16 tuổi. Vé ưu tiên dành cho học sinh, sinh viên có thẻ, người từ 60 tuổi có CCCD và một số người khuyết tật. Giá cụ thể có trong bảng giá vé ở trên."
+    },
+    {
+      "q": "Văn Miếu mở cửa mấy giờ?",
+      "a": "Theo trang chính thức vanmieu.gov.vn, tính đến tháng 11/2026, Văn Miếu – Quốc Tử Giám mở cửa hằng ngày từ 8:00 đến 17:00. Một bài hướng dẫn của Vietnam Tourism tháng 10/2026 ghi giờ vào cửa muộn nhất là 16:30, nên bạn hãy đến trước giờ đó. Tour đêm bán vé riêng và chạy vào tối thứ Tư, thứ Bảy và Chủ nhật."
+    },
+    {
+      "q": "Tour đêm Văn Miếu diễn ra vào ngày nào?",
+      "a": "Theo trang chính thức vanmieu.gov.vn, tính đến tháng 11/2026, tour đêm Văn Miếu – Quốc Tử Giám diễn ra vào tối thứ Tư, thứ Bảy và Chủ nhật. Trang tiếng Việt ghi giờ từ 18:30 đến 22:00, còn trang tiếng Anh ghi từ 18:00, nên bạn hãy hỏi giờ chiếu khi đặt vé. Tour có show 3D mapping \"Tinh hoa đạo học\" và phần trải nghiệm thư pháp. Loại vé tính theo chiều cao."
+    },
+    {
+      "q": "Mua vé Văn Miếu có trả bằng thẻ được không?",
+      "a": "Trang chính thức của Văn Miếu – Quốc Tử Giám không nói quầy vé ban ngày nhận hình thức thanh toán nào. Theo bài hướng dẫn của Vietnam Tourism cập nhật tháng 10/2026, quầy vé Văn Miếu chỉ nhận tiền mặt, không có máy quẹt thẻ, và trong khuôn viên không có ATM. Vì vậy bạn nên mang sẵn tiền lẻ trước khi đến."
+    },
+    {
+      "q": "Đi Văn Miếu mặc gì cho đúng quy định?",
+      "a": "Khi đi Văn Miếu – Quốc Tử Giám, bạn nên mặc đồ che vai và đầu gối, vì đây vẫn là nơi thờ tự và nội quy yêu cầu trang phục lịch sự. Theo Vietnam Tourism (tháng 10/2026), nhân viên không cho vào nếu khách mặc áo hai dây, áo hở bụng, quần short trên giữa đùi hoặc váy trên đầu gối. Bạn nên mang theo áo khoác mỏng."
+    },
+    {
+      "q": "Tham quan Văn Miếu mất bao lâu?",
+      "a": "Theo bài hướng dẫn của Vietnam Tourism tháng 10/2026, tham quan Văn Miếu – Quốc Tử Giám mất ít nhất khoảng 1 tiếng, và khoảng 90 phút nếu muốn đi thong thả, tính cả Vườn Giám. Thời gian này đủ để xem Khuê Văn Các, vườn 82 bia tiến sĩ, điện Đại Thành và khu Thái Học. Giờ vắng nhất là 8:00–9:30 sáng các ngày trong tuần."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Thông tin tham quan: giá vé, giờ mở cửa, sơ đồ",
+      "publisher": "Văn Miếu – Quốc Tử Giám (trang chính thức)",
+      "url": "https://vanmieu.gov.vn/introduction/visitor-information"
+    },
+    {
+      "title": "Trải nghiệm tour đêm Văn Miếu",
+      "publisher": "Văn Miếu – Quốc Tử Giám (trang chính thức)",
+      "url": "https://vanmieu.gov.vn/experience/night-tour"
+    },
+    {
+      "title": "Van Mieu – Quoc Tu Giam (trang chủ tiếng Anh)",
+      "publisher": "Văn Miếu – Quốc Tử Giám (trang chính thức)",
+      "url": "https://vanmieu.gov.vn/en"
+    },
+    {
+      "title": "Site History",
+      "publisher": "Văn Miếu – Quốc Tử Giám (trang chính thức)",
+      "url": "https://vanmieu.gov.vn/en/introduction/site-history"
+    },
+    {
+      "title": "Doctoral steles become UNESCO's Memory of the World",
+      "publisher": "Cổng thông tin điện tử Chính phủ",
+      "url": "https://thanglong.chinhphu.vn/english/doctoral-steles-become-unescos-memory-of-the-world-110293.htm"
+    },
+    {
+      "title": "Temple of Literature: Hanoi's historic center of learning",
+      "publisher": "VnExpress International",
+      "url": "https://e.vnexpress.net/news/travel/places/temple-of-literature-4820154.html"
+    },
+    {
+      "title": "Temple of Literature in Hanoi: tickets, dress code and what to look at",
+      "publisher": "Vietnam Tourism (vietnamtourism.com)",
+      "url": "https://www.vietnamtourism.com/en/temple-of-literature-in-hanoi-tickets-dress-code-and-what-to-look-at"
+    }
+  ],
+  "related": [],
+  "lastChecked": "2026-11-27",
+  "images": {
+    "hero": {
+      "id": "61606762227fc77864e2ce721d55775df68bcaa3002da91dc6138471c98b7fa2",
+      "w": 1672,
+      "h": 941,
+      "alt": "Minh họa phẳng thể hiện Khuê Văn Các màu đỏ, cây xanh và hồ nước tại Văn Miếu ở Hà Nội.",
+      "caption": "Góc nhìn minh họa về Văn Miếu – Quốc Tử Giám ở Hà Nội."
+    },
+    "figures": [
+      {
+        "id": "3a00111d74a5c741f7e24991ed219d59e1366146eabcf5436a4705dcb3d95e7b",
+        "w": 1448,
+        "h": 1086,
+        "after": "tour-dem-van-mieu",
+        "alt": "Minh họa phẳng thể hiện gác màu đỏ dưới ánh đèn ấm, giữa những tán cây và bầu trời có trăng.",
+        "caption": "Minh họa gợi không gian tham quan Văn Miếu ban đêm."
+      },
+      {
+        "id": "57110b04c382867d0835298549f6156bc964b86241b3188325972df0cbf96109",
+        "w": 1448,
+        "h": 1086,
+        "after": "van-mieu-co-gi",
+        "alt": "Minh họa phẳng thể hiện hồ nước xanh bên nhà mái ngói, với những bia đá để trống trên lưng rùa.",
+        "caption": "Minh họa một góc sân trong khuôn viên Văn Miếu."
+      }
+    ]
+  }
+}

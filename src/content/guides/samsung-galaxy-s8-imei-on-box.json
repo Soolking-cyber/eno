@@ -1,0 +1,358 @@
+{
+  "slug": "samsung-galaxy-s8-imei-on-box",
+  "title": "IMEI number on a Samsung S8 box: where it is, how to check",
+  "description": "Where the IMEI is on a Galaxy S8 box label, how to read it and match it to the phone, and the checks to make in Vietnam before you buy used.",
+  "h1": "Where to find the IMEI on a Samsung Galaxy S8 box, and how to check it matches the phone",
+  "eyebrow": "Buying a used phone",
+  "intro": "The IMEI on a Samsung Galaxy S8 box is the 15-digit number on the label sticker outside the box, printed next to the serial number and model number. Samsung says the original box may list the full IMEI. Before you buy a used S8, dial star, hash, 0, 6, hash on the phone and check that the number on screen is exactly the one on the box.",
+  "keyPoints": [
+    "An IMEI is **15 digits**: 14 identifying digits and a check digit. The first 8 are the Type Allocation Code, which identifies the model.",
+    "The box label, the screen after dialling **\\*#06#**, and **Settings > About phone** should all show the same IMEI. If they don't match, don't buy the phone.",
+    "A dual-SIM S8 usually has **two IMEIs**. The box and the phone have to agree on both.",
+    "With a broken screen you can still reach Settings with a USB mouse or a TV, Samsung says. Google's Find Hub (formerly Find My Device) also shows the IMEI.",
+    "Samsung Vietnam's [warranty check](https://www.samsung.com/vn/support/mobiledevices/warranty-check) accepts an IMEI or serial number. To find out whether an IMEI is blocked, for example because the phone was reported lost or stolen, **ask your mobile network operator** (nhà mạng: Viettel, VinaPhone or MobiFone)."
+  ],
+  "sections": [
+    {
+      "id": "where-is-the-imei-on-a-samsung-s8-box",
+      "title": "Where is the IMEI number on a Samsung S8 box?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The IMEI is on the printed label sticker on the outside of the box, beside or under a barcode, together with the serial number and the model number. According to [Samsung's support pages](https://www.samsung.com/us/support/answer/ANS00048604/), as of November 2026, \"the original box may list the device's full IMEI and serial number\"."
+        },
+        {
+          "type": "p",
+          "text": "An IMEI (International Mobile Equipment Identity) is the 15-digit number that identifies one handset on mobile networks. The first eight digits are the Type Allocation Code, which identifies the model. Bodies approved by the GSMA, the mobile industry association, allocate these codes on its behalf."
+        },
+        {
+          "type": "h3",
+          "text": "What else is on the box label?"
+        },
+        {
+          "type": "p",
+          "text": "The label also has the **serial number (S/N)** and the **model number**. Samsung's [Canadian support page](https://www.samsung.com/ca/support/mobile-devices/galaxy-phone-imei/) gives SM-G950W as the model number of certain S8 models. The letters after G950 depend on the market the phone was sold in, so a different suffix is not a fault in itself. What matters is that the box and the phone show the same model."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Ask for the label before you travel",
+          "text": "Before you meet a seller, ask for a clear photo of the box label and a screenshot of the \\*#06# screen. If the seller won't send either, you know enough not to make the trip."
+        }
+      ]
+    },
+    {
+      "id": "how-to-read-the-imei-on-the-label",
+      "title": "How do you read the IMEI on the label correctly?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Read the line marked IMEI, which should be exactly 15 digits, and don't mix it up with the serial number or any other barcode on the label. If the box shows IMEI 1 and IMEI 2, it came with a dual-SIM phone, and you need to check each number."
+        },
+        {
+          "type": "table",
+          "caption": "Numbers on a Samsung phone box and what they mean. Sources: Samsung support pages and Wikipedia's IMEI article, read 26 November 2026",
+          "headers": [
+            "Number on the label",
+            "What it looks like",
+            "What it tells you"
+          ],
+          "rows": [
+            [
+              "IMEI (or IMEI 1)",
+              "15 digits",
+              "The handset's network identity. It must match \\*#06# on the phone."
+            ],
+            [
+              "IMEI 2",
+              "15 digits, on dual-SIM models",
+              "The second SIM slot's identity. It must match too."
+            ],
+            [
+              "Serial number (S/N)",
+              "Letters and digits",
+              "Samsung's number for this device. Settings > About phone shows it."
+            ],
+            [
+              "Model number",
+              "Starts SM-, for example SM-G950W",
+              "The exact version of the S8. It must match Settings > About phone."
+            ],
+            [
+              "16-digit number",
+              "16 digits",
+              "Probably an IMEISV, which ends in two software-version digits rather than a check digit"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Can you spot a fake IMEI from the digits alone?"
+        },
+        {
+          "type": "p",
+          "text": "Only partly. The 15th digit is a check digit worked out from the other 14 with the Luhn formula, so a mistyped or invented number often fails the test. A number that passes isn't proof that the phone is genuine. It only shows the number is well formed."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Take the first 14 digits",
+              "text": "Leave out the 15th digit for now. Wikipedia's example is 49015420323751."
+            },
+            {
+              "title": "Double every second digit, starting from the right",
+              "text": "Double the right-most of the 14 digits, then every second digit as you move left. If a result is 10 or more, add its two digits together (14 becomes 1 + 4 = 5)."
+            },
+            {
+              "title": "Add everything up",
+              "text": "Add the doubled digits to the digits you didn't double."
+            },
+            {
+              "title": "Find the check digit",
+              "text": "The check digit is whatever brings the total up to the next multiple of 10. For the example it is 8, giving 490154203237518. If your result is different from the last digit on the label, the number is wrong."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "how-to-check-the-box-matches-the-phone",
+      "title": "How do you check the box IMEI matches the phone?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Dial **\\*#06#** in the Phone app and compare the number on screen with the box label, digit by digit. Then open Settings > About phone and check the IMEI, serial number and model there too. Samsung lists both methods, and notes that \\*#06# only works where the carrier supports it, so Settings is the fallback."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Dial the IMEI code",
+              "text": "Type \\*#06# in the Phone app. The IMEI, or both IMEIs on a dual-SIM phone, appear on screen. Samsung's US page says the serial number shows there too."
+            },
+            {
+              "title": "Open Settings > About phone",
+              "text": "Check the IMEI, serial number and model number. On older software you may have to tap Status first, Samsung says."
+            },
+            {
+              "title": "Compare with the box",
+              "text": "Every digit of every IMEI must match, and so must the model number and serial number. One wrong digit means the box came with a different phone."
+            },
+            {
+              "title": "Check the IMEI in Vietnam",
+              "text": "Put each IMEI into Samsung Vietnam's warranty check, and ask your mobile network operator whether it is blocked (see the next section)."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Box and phone don't match",
+          "text": "If the box and phone don't match, the box belongs to another phone, the phone has had parts swapped, or someone has tampered with the phone's identity. The GSMA warns that a device whose details don't match the handset could be counterfeit or have a tampered electronic identity. Don't buy it on the strength of the seller's explanation."
+        },
+        {
+          "type": "h3",
+          "text": "Why not just read the IMEI on the back of the phone?"
+        },
+        {
+          "type": "p",
+          "text": "You can, but treat it as a third check, not the main one. Samsung says the IMEI and serial number are printed in small text near the bottom of the back of the device. The numbers that count are the ones the phone's software reports. Only older Samsung phones with a removable battery have the IMEI under the battery. Samsung's [Irish support page](https://www.samsung.com/ie/support/mobile-devices/how-do-i-find-the-imei-model-number-and-serial-number-for-samsung-galaxy-device) warns not to try removing the battery on newer devices, because doing so can damage the device and void the warranty."
+        },
+        {
+          "type": "h3",
+          "text": "What if the S8's screen is broken?"
+        },
+        {
+          "type": "p",
+          "text": "Use the box, and if you can, reach Settings another way. Samsung's Irish page says you can get into the settings menu by connecting a USB mouse or a TV. If the phone is signed in to a Google account, Google's Find Hub (formerly Find My Device) shows the IMEI: go to android.com/find and select Settings next to the phone. If the seller has a Samsung account, Samsung's US page says the Samsung Members app shows the numbers under Support. If a seller can't show you the IMEI from the phone itself, you're relying on the box alone, and that isn't enough."
+        }
+      ]
+    },
+    {
+      "id": "checking-the-imei-before-you-buy-used-in-vietnam",
+      "title": "How do you check a used Samsung's IMEI in Vietnam?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Run Samsung Vietnam's electronic warranty check, and ask your mobile network operator (nhà mạng: Viettel, VinaPhone or MobiFone) whether the IMEI is blocked. They answer different questions, so do both for every IMEI the phone has."
+        },
+        {
+          "type": "table",
+          "caption": "IMEI checks for a used Samsung phone in Vietnam, as read on 27 November 2026",
+          "headers": [
+            "Check",
+            "Run by",
+            "What you give",
+            "What it tells you"
+          ],
+          "rows": [
+            [
+              "[Kiểm tra thời hạn bảo hành điện tử](https://www.samsung.com/vn/support/mobiledevices/warranty-check)",
+              "Samsung Vietnam",
+              "Product group, then the IMEI or serial number, plus a reCAPTCHA",
+              "Activation date, expiry date and any extended warranty expiry date"
+            ],
+            [
+              "Ask whether the IMEI is blocked",
+              "Your mobile network operator: Viettel, VinaPhone or MobiFone",
+              "Each IMEI",
+              "Whether the IMEI is blocked, for example because the phone was reported lost or stolen. What an operator can tell you varies, so ask"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "What does Samsung Vietnam's warranty check show?"
+        },
+        {
+          "type": "p",
+          "text": "According to Samsung Vietnam's page, as of November 2026, the check returns the product's warranty activation date and expiry date. An S8 is long past any standard warranty, but an activation date still tells you the phone was registered in Samsung Vietnam's warranty system. A phone brought in from abroad may return no result, which proves nothing either way. To confirm warranty details, the page points you to Samsung Vietnam's customer care on Zalo."
+        },
+        {
+          "type": "h3",
+          "text": "Can you check the GSMA Block List yourself?"
+        },
+        {
+          "type": "p",
+          "text": "No. GSMA Device Check, the GSMA's service for finding out whether a device has been flagged lost or stolen, needs a login. Its [login page](https://devicecheck.gsma.com/rtlapp) asks for a User ID and password, and as of November 2026 lists its users as government agencies, such as law enforcement and regulators, and businesses, such as device traders, insurers and repair centres. The GSMA's [Device Check FAQ](https://devicecheck.gsma.com/rtlapp/faqs/) says consumers should contact their wireless provider, so a private buyer asks the network operator instead."
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "Will an S8 work on Vietnamese networks?",
+          "text": "A clean IMEI doesn't tell you whether an older phone works on Vietnamese networks since 2G was switched off. That depends on network rules, which our guide to [buying a phone in Vietnam](/guides/buy-phone-in-vietnam) covers. Put your own SIM in the phone and make a call before you pay. Since April 2026, moving your SIM to another phone can make your operator suspend outgoing calls and texts until you redo face verification in VNeID or the operator's app."
+        },
+        {
+          "type": "p",
+          "text": "Used phones on eno.vn are listed under [Electronics](/c/electronics). eno.vn doesn't verify sellers or devices, so ask for the box label and the \\*#06# screen before you meet, run the warranty check and ask your operator yourself. If you're selling your own phone before a move, our guide to [selling up before you leave Vietnam](/selling-up-before-you-leave-vietnam) covers the rest of what you're selling."
+        }
+      ]
+    },
+    {
+      "id": "dual-sim-s8-two-imeis",
+      "title": "Why does my Galaxy S8 show two IMEI numbers?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "An S8 that shows two IMEIs is a dual-SIM version. According to [Wikipedia's IMEI article](https://en.wikipedia.org/wiki/International_Mobile_Equipment_Identity), dual-SIM devices usually have two IMEIs, one for each SIM slot. Both should appear on the \\*#06# screen and on the box label."
+        },
+        {
+          "type": "p",
+          "text": "Check both numbers every time you compare, and give both to your mobile network operator when you ask whether the phone is blocked, because one IMEI can be clean while the other is flagged. If the box shows one IMEI and the phone shows two, or the other way round, the box belongs to a different version of the S8."
+        }
+      ]
+    },
+    {
+      "id": "what-this-guide-does-not-cover",
+      "title": "What this guide does not cover",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Other Galaxy models. Samsung's support pages give the same methods for any Galaxy phone, but box labels differ by model and year. For a newer model, see [S26 Ultra colours](/guides/samsung-galaxy-s26-ultra-colors).",
+            "Which phones work on Vietnamese networks since 2G was switched off: see [buying a phone in Vietnam](/guides/buy-phone-in-vietnam) and [the cheapest phones in Vietnam](/guides/cheapest-phone-in-vietnam).",
+            "What to do if your own phone is stolen. Ask your mobile provider about blocking its IMEI, and report the theft to the police.",
+            "Repair history and battery health. An IMEI check shows neither, so ask a Samsung service centre to inspect the phone."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Where is the IMEI number on a Samsung S8 box?",
+      "a": "The IMEI number on a Samsung Galaxy S8 box is printed on the label sticker on the outside of the box, near a barcode and next to the serial number and model number. Samsung's support pages say the original box may list the device's full IMEI and serial number. The box of a dual-SIM S8 usually shows two IMEIs, labelled IMEI 1 and IMEI 2."
+    },
+    {
+      "q": "Is the IMEI on a Samsung box the same as on the phone?",
+      "a": "The IMEI on a Samsung box should be exactly the same as the IMEI the phone shows when you dial star, hash, 0, 6, hash, or open Settings and then About phone. If even one digit is different, the box belongs to another phone, or the phone has had parts swapped or its identity changed. Don't buy a used Samsung phone whose IMEI doesn't match its box."
+    },
+    {
+      "q": "How do I check the IMEI on a Samsung S8 without the box?",
+      "a": "Without the box, you can find a Samsung Galaxy S8's IMEI by dialling star, hash, 0, 6, hash in the Phone app, or by opening Settings and then About phone. Samsung also says the IMEI is printed in small text on the back of the device. Google's Find Hub (formerly Find My Device) shows the IMEI of a phone signed in to a Google account, and the Samsung Members app shows it for a registered phone."
+    },
+    {
+      "q": "How many digits is a Samsung IMEI number?",
+      "a": "A Samsung IMEI number has 15 digits, like every IMEI. The first 8 digits are the Type Allocation Code, which identifies the model, and the last digit is a check digit calculated with the Luhn formula. A 16-digit number is usually an IMEISV, which ends in two software-version digits instead of the check digit."
+    },
+    {
+      "q": "Why does my Galaxy S8 have two IMEI numbers?",
+      "a": "A Galaxy S8 with two IMEI numbers is a dual-SIM version. Dual-SIM phones usually have one IMEI for each SIM slot. Both IMEIs appear when you dial star, hash, 0, 6, hash, and the original box should show both. When you buy a used dual-SIM S8, compare both IMEIs with the box and give both to your mobile network operator when you ask whether the phone is blocked."
+    },
+    {
+      "q": "How do I check if a used Samsung phone is stolen?",
+      "a": "To check whether a used Samsung phone is blocked as lost or stolen in Vietnam, give its IMEI to your mobile network operator, such as Viettel, VinaPhone or MobiFone, and ask. The GSMA's own Device Check service needs a business or government login, and the GSMA's FAQ says consumers should contact their wireless provider. Samsung Vietnam's warranty check shows warranty dates, not whether a phone was stolen."
+    },
+    {
+      "q": "Can I check a Samsung warranty by IMEI in Vietnam?",
+      "a": "Yes. Samsung Vietnam's electronic warranty check page accepts an IMEI or serial number and shows the warranty activation date and expiry date. A Samsung Galaxy S8 is past any standard warranty, but an activation date shows the phone was registered in Samsung Vietnam's warranty system. A phone brought in privately from abroad may return no result."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Find your Samsung phone or tablet's IMEI, model, or serial number",
+      "publisher": "Samsung",
+      "url": "https://www.samsung.com/us/support/answer/ANS00048604/"
+    },
+    {
+      "title": "How do I find the IMEI, model number and serial number for a Samsung Galaxy device?",
+      "publisher": "Samsung",
+      "url": "https://www.samsung.com/ie/support/mobile-devices/how-do-i-find-the-imei-model-number-and-serial-number-for-samsung-galaxy-device"
+    },
+    {
+      "title": "Find your Galaxy phone's IMEI, model number or serial number",
+      "publisher": "Samsung",
+      "url": "https://www.samsung.com/ca/support/mobile-devices/galaxy-phone-imei/"
+    },
+    {
+      "title": "Kiểm tra thời hạn bảo hành điện tử",
+      "publisher": "Samsung Vietnam",
+      "url": "https://www.samsung.com/vn/support/mobiledevices/warranty-check"
+    },
+    {
+      "title": "GSMA Device Check",
+      "publisher": "GSMA",
+      "url": "https://devicecheck.gsma.com/rtlapp"
+    },
+    {
+      "title": "Device Check FAQs",
+      "publisher": "GSMA",
+      "url": "https://devicecheck.gsma.com/rtlapp/faqs/"
+    },
+    {
+      "title": "International Mobile Equipment Identity",
+      "publisher": "Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/International_Mobile_Equipment_Identity"
+    }
+  ],
+  "related": [],
+  "lastChecked": "2026-11-27",
+  "images": {
+    "hero": {
+      "id": "becb8d1f9e566e621eb3802ef597513510262919fd8aa6e0125fce2a64d0f415",
+      "w": 1672,
+      "h": 941,
+      "alt": "A magnifying glass highlights an abstract label on a blue phone box beside a simplified phone.",
+      "caption": "Finding the box IMEI and comparing it with the phone."
+    },
+    "figures": [
+      {
+        "id": "3ad29e74efb04981cddd7f9a6dc7076d442139d785d799e77c11938eee68a61e",
+        "w": 1448,
+        "h": 1086,
+        "after": "where-is-the-imei-on-a-samsung-s8-box",
+        "alt": "A blue box has an exterior sticker connected to an enlarged inset showing three abstract colored bands.",
+        "caption": "Look for the IMEI on the label outside the box."
+      },
+      {
+        "id": "c734dded9a45be997c307d6a650668bf33ec5e07a63c39282ec5f31ab41011fb",
+        "w": 1448,
+        "h": 1086,
+        "after": "how-to-check-the-box-matches-the-phone",
+        "alt": "Matching colored shapes on a box label and a phone screen represent comparing their identifiers.",
+        "caption": "Check that the IMEI on the phone exactly matches the one on the box."
+      }
+    ]
+  }
+}

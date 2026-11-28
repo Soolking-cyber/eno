@@ -53,41 +53,50 @@ import g48 from '@/content/guides/mua-dien-thoai-gia-re-o-dau.json'
 import g49 from '@/content/guides/mua-dien-thoai-o-dau-uy-tin.json'
 import g50 from '@/content/guides/mua-iphone-chinh-hang-o-dau-uy-tin.json'
 import g51 from '@/content/guides/mua-iphone-o-viet-nam-co-re-hon-khong.json'
-import g52 from '@/content/guides/mua-sofa-cu-tphcm.json'
-import g53 from '@/content/guides/mua-tivi-4k-55-inch.json'
-import g54 from '@/content/guides/muaban-net-alternative.json'
-import g55 from '@/content/guides/nen-mua-dell-inspiron-hay-vostro.json'
-import g56 from '@/content/guides/nen-mua-laptop-14-inch-hay-15-6-inch.json'
-import g57 from '@/content/guides/nen-mua-laptop-cu-hp-hay-lenovo.json'
-import g58 from '@/content/guides/nha-hat-vinpearl-ocean-city-ve-dat-nuoc-thien-hung-ca.json'
-import g59 from '@/content/guides/orange-iphone-turning-pink.json'
-import g60 from '@/content/guides/quan-1-tphcm-thue-can-ho.json'
-import g61 from '@/content/guides/remote-tivi-sony.json'
-import g62 from '@/content/guides/rent-prices.json'
-import g63 from '@/content/guides/rent-your-apartment-to-foreigners-ho-chi-minh-city.json'
-import g64 from '@/content/guides/renting-a-motorbike-in-ho-chi-minh-city.json'
-import g65 from '@/content/guides/renting-a-motorbike-in-vietnam.json'
-import g66 from '@/content/guides/renting-to-foreigners-ho-chi-minh-city.json'
-import g67 from '@/content/guides/saigonmoving.json'
-import g68 from '@/content/guides/samsung-galaxy-s26-ultra-colors.json'
-import g69 from '@/content/guides/sony-tv-remote-replacement.json'
-import g70 from '@/content/guides/thay-the-muaban-net-dang-tin-mien-phi.json'
-import g71 from '@/content/guides/thue-can-ho-tay-ho.json'
-import g72 from '@/content/guides/thue-chung-cu-tphcm.json'
-import g73 from '@/content/guides/thue-nha-quan-7-phu-my-hung.json'
-import g74 from '@/content/guides/thue-xe-dien-vinfast-tphcm.json'
-import g75 from '@/content/guides/thue-xe-may-sai-gon-kinh-nghiem.json'
-import g76 from '@/content/guides/thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm.json'
-import g77 from '@/content/guides/truong-quoc-te-tphcm.json'
-import g78 from '@/content/guides/tuyen-giao-vien-nuoc-ngoai.json'
-import g79 from '@/content/guides/tuyen-giao-vien-nuoc-ngoai-day-tieng-anh.json'
-import g80 from '@/content/guides/used-sofa.json'
-import g81 from '@/content/guides/viec-lam-giao-vien-tieng-anh-tphcm.json'
-import g82 from '@/content/guides/vietnam-cities-compared.json'
-import g83 from '@/content/guides/vietnam-school-leaders-english-requirements.json'
-import g84 from '@/content/guides/vinfast-electric-scooter-and-car-rental-ho-chi-minh-city.json'
-import g85 from '@/content/guides/vinpearl-theatre-ocean-city.json'
-import g86 from '@/content/guides/what-is-a-lease.json'
+import g52 from '@/content/guides/mua-laptop-hp-pavilion-14-ce3-cu-kiem-tra-cau-hinh-pin.json'
+import g53 from '@/content/guides/mua-sofa-cu-tphcm.json'
+import g54 from '@/content/guides/mua-tivi-4k-55-inch.json'
+import g55 from '@/content/guides/muaban-net-alternative.json'
+import g56 from '@/content/guides/my-son-sanctuary.json'
+import g57 from '@/content/guides/nen-mua-dell-inspiron-hay-vostro.json'
+import g58 from '@/content/guides/nen-mua-laptop-14-inch-hay-15-6-inch.json'
+import g59 from '@/content/guides/nen-mua-laptop-cu-hp-hay-lenovo.json'
+import g60 from '@/content/guides/nha-hat-vinpearl-ocean-city-ve-dat-nuoc-thien-hung-ca.json'
+import g61 from '@/content/guides/orange-iphone-turning-pink.json'
+import g62 from '@/content/guides/quan-1-tphcm-thue-can-ho.json'
+import g63 from '@/content/guides/remote-tivi-sony.json'
+import g64 from '@/content/guides/rent-prices.json'
+import g65 from '@/content/guides/rent-your-apartment-to-foreigners-ho-chi-minh-city.json'
+import g66 from '@/content/guides/renting-a-motorbike-in-ho-chi-minh-city.json'
+import g67 from '@/content/guides/renting-a-motorbike-in-vietnam.json'
+import g68 from '@/content/guides/renting-to-foreigners-ho-chi-minh-city.json'
+import g69 from '@/content/guides/saigonmoving.json'
+import g70 from '@/content/guides/samsung-galaxy-s26-ultra-colors.json'
+import g71 from '@/content/guides/samsung-galaxy-s8-imei-on-box.json'
+import g72 from '@/content/guides/son-doong-tours.json'
+import g73 from '@/content/guides/sony-tv-remote-replacement.json'
+import g74 from '@/content/guides/temple-of-literature-hanoi.json'
+import g75 from '@/content/guides/thanh-dia-my-son-gia-ve-cach-di.json'
+import g76 from '@/content/guides/thay-the-muaban-net-dang-tin-mien-phi.json'
+import g77 from '@/content/guides/thue-can-ho-tay-ho.json'
+import g78 from '@/content/guides/thue-chung-cu-tphcm.json'
+import g79 from '@/content/guides/thue-nha-quan-7-phu-my-hung.json'
+import g80 from '@/content/guides/thue-xe-dien-vinfast-tphcm.json'
+import g81 from '@/content/guides/thue-xe-may-sai-gon-kinh-nghiem.json'
+import g82 from '@/content/guides/thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm.json'
+import g83 from '@/content/guides/truong-quoc-te-tphcm.json'
+import g84 from '@/content/guides/tuyen-giao-vien-nuoc-ngoai.json'
+import g85 from '@/content/guides/tuyen-giao-vien-nuoc-ngoai-day-tieng-anh.json'
+import g86 from '@/content/guides/used-dell-24-inch-monitor.json'
+import g87 from '@/content/guides/used-sofa.json'
+import g88 from '@/content/guides/van-mieu-quoc-tu-giam-gia-ve-gio-mo-cua.json'
+import g89 from '@/content/guides/viec-lam-giao-vien-tieng-anh-tphcm.json'
+import g90 from '@/content/guides/vietnam-cities-compared.json'
+import g91 from '@/content/guides/vietnam-school-leaders-english-requirements.json'
+import g92 from '@/content/guides/vinfast-electric-scooter-and-car-rental-ho-chi-minh-city.json'
+import g93 from '@/content/guides/vinpearl-theatre-ocean-city.json'
+import g94 from '@/content/guides/what-is-a-lease.json'
+import g95 from '@/content/guides/xem-imei-samsung-s8-tren-vo-hop.json'
 
 export const GUIDE_CONTENT: Readonly<Record<string, unknown>> = {
   '14-inch-vs-15-6-inch-laptop': g0,
@@ -142,39 +151,48 @@ export const GUIDE_CONTENT: Readonly<Record<string, unknown>> = {
   'mua-dien-thoai-o-dau-uy-tin': g49,
   'mua-iphone-chinh-hang-o-dau-uy-tin': g50,
   'mua-iphone-o-viet-nam-co-re-hon-khong': g51,
-  'mua-sofa-cu-tphcm': g52,
-  'mua-tivi-4k-55-inch': g53,
-  'muaban-net-alternative': g54,
-  'nen-mua-dell-inspiron-hay-vostro': g55,
-  'nen-mua-laptop-14-inch-hay-15-6-inch': g56,
-  'nen-mua-laptop-cu-hp-hay-lenovo': g57,
-  'nha-hat-vinpearl-ocean-city-ve-dat-nuoc-thien-hung-ca': g58,
-  'orange-iphone-turning-pink': g59,
-  'quan-1-tphcm-thue-can-ho': g60,
-  'remote-tivi-sony': g61,
-  'rent-prices': g62,
-  'rent-your-apartment-to-foreigners-ho-chi-minh-city': g63,
-  'renting-a-motorbike-in-ho-chi-minh-city': g64,
-  'renting-a-motorbike-in-vietnam': g65,
-  'renting-to-foreigners-ho-chi-minh-city': g66,
-  'saigonmoving': g67,
-  'samsung-galaxy-s26-ultra-colors': g68,
-  'sony-tv-remote-replacement': g69,
-  'thay-the-muaban-net-dang-tin-mien-phi': g70,
-  'thue-can-ho-tay-ho': g71,
-  'thue-chung-cu-tphcm': g72,
-  'thue-nha-quan-7-phu-my-hung': g73,
-  'thue-xe-dien-vinfast-tphcm': g74,
-  'thue-xe-may-sai-gon-kinh-nghiem': g75,
-  'thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm': g76,
-  'truong-quoc-te-tphcm': g77,
-  'tuyen-giao-vien-nuoc-ngoai': g78,
-  'tuyen-giao-vien-nuoc-ngoai-day-tieng-anh': g79,
-  'used-sofa': g80,
-  'viec-lam-giao-vien-tieng-anh-tphcm': g81,
-  'vietnam-cities-compared': g82,
-  'vietnam-school-leaders-english-requirements': g83,
-  'vinfast-electric-scooter-and-car-rental-ho-chi-minh-city': g84,
-  'vinpearl-theatre-ocean-city': g85,
-  'what-is-a-lease': g86,
+  'mua-laptop-hp-pavilion-14-ce3-cu-kiem-tra-cau-hinh-pin': g52,
+  'mua-sofa-cu-tphcm': g53,
+  'mua-tivi-4k-55-inch': g54,
+  'muaban-net-alternative': g55,
+  'my-son-sanctuary': g56,
+  'nen-mua-dell-inspiron-hay-vostro': g57,
+  'nen-mua-laptop-14-inch-hay-15-6-inch': g58,
+  'nen-mua-laptop-cu-hp-hay-lenovo': g59,
+  'nha-hat-vinpearl-ocean-city-ve-dat-nuoc-thien-hung-ca': g60,
+  'orange-iphone-turning-pink': g61,
+  'quan-1-tphcm-thue-can-ho': g62,
+  'remote-tivi-sony': g63,
+  'rent-prices': g64,
+  'rent-your-apartment-to-foreigners-ho-chi-minh-city': g65,
+  'renting-a-motorbike-in-ho-chi-minh-city': g66,
+  'renting-a-motorbike-in-vietnam': g67,
+  'renting-to-foreigners-ho-chi-minh-city': g68,
+  'saigonmoving': g69,
+  'samsung-galaxy-s26-ultra-colors': g70,
+  'samsung-galaxy-s8-imei-on-box': g71,
+  'son-doong-tours': g72,
+  'sony-tv-remote-replacement': g73,
+  'temple-of-literature-hanoi': g74,
+  'thanh-dia-my-son-gia-ve-cach-di': g75,
+  'thay-the-muaban-net-dang-tin-mien-phi': g76,
+  'thue-can-ho-tay-ho': g77,
+  'thue-chung-cu-tphcm': g78,
+  'thue-nha-quan-7-phu-my-hung': g79,
+  'thue-xe-dien-vinfast-tphcm': g80,
+  'thue-xe-may-sai-gon-kinh-nghiem': g81,
+  'thue-xe-o-to-tu-lai-hay-co-tai-xe-tphcm': g82,
+  'truong-quoc-te-tphcm': g83,
+  'tuyen-giao-vien-nuoc-ngoai': g84,
+  'tuyen-giao-vien-nuoc-ngoai-day-tieng-anh': g85,
+  'used-dell-24-inch-monitor': g86,
+  'used-sofa': g87,
+  'van-mieu-quoc-tu-giam-gia-ve-gio-mo-cua': g88,
+  'viec-lam-giao-vien-tieng-anh-tphcm': g89,
+  'vietnam-cities-compared': g90,
+  'vietnam-school-leaders-english-requirements': g91,
+  'vinfast-electric-scooter-and-car-rental-ho-chi-minh-city': g92,
+  'vinpearl-theatre-ocean-city': g93,
+  'what-is-a-lease': g94,
+  'xem-imei-samsung-s8-tren-vo-hop': g95,
 }

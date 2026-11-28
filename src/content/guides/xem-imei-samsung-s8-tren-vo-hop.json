@@ -1,0 +1,354 @@
+{
+  "slug": "xem-imei-samsung-s8-tren-vo-hop",
+  "title": "Xem IMEI trên vỏ hộp Samsung S8: vị trí và cách đối chiếu",
+  "description": "IMEI nằm ở đâu trên tem hộp Galaxy S8, cách đọc đúng 15 số, đối chiếu với máy, tra bảo hành Samsung Việt Nam và hỏi nhà mạng trước khi mua máy cũ.",
+  "h1": "IMEI trên vỏ hộp Samsung Galaxy S8 nằm ở đâu, và cách kiểm tra có trùng với máy không",
+  "eyebrow": "Mua điện thoại cũ",
+  "intro": "IMEI trên vỏ hộp Samsung Galaxy S8 là dãy 15 số in trên tem nhãn dán ngoài hộp, cạnh số sê-ri và số model. Samsung cho biết hộp gốc có thể ghi đầy đủ IMEI của máy. Trước khi mua S8 cũ, hãy bấm dấu sao, dấu thăng, 0, 6, dấu thăng trên máy và so từng số trên màn hình với số trên hộp.",
+  "keyPoints": [
+    "IMEI có **15 chữ số**: 14 số định danh và 1 số kiểm tra. 8 số đầu là mã TAC, cho biết dòng máy.",
+    "Tem hộp, màn hình sau khi bấm **\\*#06#** và mục **Cài đặt > Thông tin điện thoại** phải cùng một IMEI. Lệch dù một số thì đừng mua.",
+    "S8 bản 2 SIM thường có **hai IMEI**. Cả hai số trên hộp và trên máy đều phải khớp.",
+    "Theo Samsung, máy vỡ màn hình vẫn vào được Cài đặt nếu cắm chuột USB hoặc kết nối TV. Dịch vụ Find Hub (trước đây là Find My Device) của Google cũng hiện IMEI.",
+    "Trang [kiểm tra bảo hành điện tử](https://www.samsung.com/vn/support/mobiledevices/warranty-check) của Samsung Việt Nam nhận IMEI hoặc số sê-ri. Muốn biết IMEI có bị chặn không, ví dụ vì máy đã bị báo mất, hãy **hỏi nhà mạng** (Viettel, VinaPhone, MobiFone): GSMA Device Check chỉ dành cho doanh nghiệp và cơ quan nhà nước có tài khoản."
+  ],
+  "sections": [
+    {
+      "id": "imei-tren-hop-samsung-s8-nam-o-dau",
+      "title": "IMEI trên hộp Samsung S8 nằm ở đâu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "IMEI nằm trên tem nhãn in dán ở mặt ngoài vỏ hộp, cạnh hoặc dưới một mã vạch, chung chỗ với số sê-ri và số model. Theo [trang hỗ trợ của Samsung](https://www.samsung.com/us/support/answer/ANS00048604/), tính đến tháng 11/2026, hộp gốc \"có thể ghi đầy đủ IMEI và số sê-ri của thiết bị\"."
+        },
+        {
+          "type": "p",
+          "text": "IMEI (International Mobile Equipment Identity, mã nhận dạng thiết bị di động quốc tế) là dãy 15 số dùng để nhận diện từng chiếc máy trên mạng di động. 8 số đầu là mã TAC (Type Allocation Code), cho biết dòng máy. Mã này do các đơn vị được GSMA, hiệp hội ngành di động toàn cầu, ủy quyền cấp."
+        },
+        {
+          "type": "h3",
+          "text": "Trên tem hộp còn những số nào?"
+        },
+        {
+          "type": "p",
+          "text": "Ngoài IMEI, tem hộp còn ghi **số sê-ri (S/N)** và **số model**. [Trang hỗ trợ của Samsung Canada](https://www.samsung.com/ca/support/mobile-devices/galaxy-phone-imei/) lấy SM-G950W làm ví dụ cho số model của một số máy S8. Các chữ đứng sau G950 thay đổi theo thị trường bán máy, nên hậu tố khác không có nghĩa là máy có vấn đề. Điều cần kiểm tra là model trên hộp và trên máy phải giống nhau."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "title": "Xin ảnh tem hộp trước khi đi xem máy",
+          "text": "Trước khi hẹn gặp người bán, hãy xin một ảnh chụp rõ tem hộp và một ảnh chụp màn hình \\*#06#. Người bán không chịu gửi thì bạn khỏi mất công đi."
+        }
+      ]
+    },
+    {
+      "id": "cach-doc-imei-tren-tem-hop",
+      "title": "Đọc IMEI trên tem hộp thế nào cho đúng?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Bạn đọc dòng có chữ IMEI. Dòng này phải có đúng 15 chữ số, và đừng nhầm nó với số sê-ri hay một mã vạch khác trên tem. Hộp ghi IMEI 1 và IMEI 2 nghĩa là máy đi kèm là bản 2 SIM, và bạn phải kiểm tra cả hai số."
+        },
+        {
+          "type": "table",
+          "caption": "Các số trên tem hộp điện thoại Samsung và ý nghĩa. Nguồn: trang hỗ trợ của Samsung và bài IMEI trên Wikipedia, đọc ngày 26/11/2026",
+          "headers": [
+            "Số trên tem",
+            "Trông như thế nào",
+            "Cho bạn biết gì"
+          ],
+          "rows": [
+            [
+              "IMEI (hoặc IMEI 1)",
+              "15 chữ số",
+              "Mã nhận dạng của máy trên mạng di động. Phải trùng với số hiện ra khi bấm \\*#06#."
+            ],
+            [
+              "IMEI 2",
+              "15 chữ số, chỉ có ở bản 2 SIM",
+              "Mã của khe SIM thứ hai. Cũng phải trùng."
+            ],
+            [
+              "Số sê-ri (S/N)",
+              "Gồm cả chữ và số",
+              "Số Samsung dùng để quản lý từng máy. Xem được trong Cài đặt > Thông tin điện thoại."
+            ],
+            [
+              "Số model",
+              "Bắt đầu bằng SM-, ví dụ SM-G950W",
+              "Phiên bản cụ thể của S8. Phải trùng với Cài đặt > Thông tin điện thoại."
+            ],
+            [
+              "Dãy 16 chữ số",
+              "16 chữ số",
+              "Nhiều khả năng là IMEISV: 2 số cuối là phiên bản phần mềm, không phải số kiểm tra"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Chỉ nhìn dãy số có biết IMEI giả không?"
+        },
+        {
+          "type": "p",
+          "text": "Chỉ biết được một phần. Số thứ 15 là số kiểm tra, tính từ 14 số đầu theo thuật toán Luhn, nên một dãy số gõ sai hoặc bịa ra thường không qua được phép thử này. Một số qua được phép thử thì chưa chứng minh máy là hàng thật. Nó chỉ cho biết dãy số được viết đúng quy tắc."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Lấy 14 số đầu",
+              "text": "Tạm bỏ số thứ 15 ra. Wikipedia dùng ví dụ 49015420323751."
+            },
+            {
+              "title": "Nhân đôi cách một số, bắt đầu từ bên phải",
+              "text": "Nhân đôi số ngoài cùng bên phải của 14 số, rồi cứ cách một số lại nhân đôi một số khi đi dần sang trái. Kết quả nào từ 10 trở lên thì cộng hai chữ số của nó lại (14 thành 1 + 4 = 5)."
+            },
+            {
+              "title": "Cộng tất cả lại",
+              "text": "Cộng các số đã nhân đôi với các số không nhân đôi."
+            },
+            {
+              "title": "Tìm số kiểm tra",
+              "text": "Số kiểm tra là số cần cộng thêm để tổng tròn lên bội số tiếp theo của 10. Với ví dụ trên, số đó là 8, nên IMEI đầy đủ là 490154203237518. Kết quả của bạn khác số cuối trên tem thì dãy số đó sai."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cach-kiem-tra-imei-hop-trung-voi-may",
+      "title": "Làm sao kiểm tra IMEI trên hộp có trùng với máy?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Bấm **\\*#06#** trong ứng dụng Điện thoại rồi so từng số trên màn hình với tem hộp. Sau đó vào Cài đặt > Thông tin điện thoại để xem lại IMEI, số sê-ri và số model. Samsung đưa ra cả hai cách này, và lưu ý rằng \\*#06# chỉ dùng được khi nhà mạng hỗ trợ, nên mục Cài đặt là cách dự phòng."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Bấm mã xem IMEI",
+              "text": "Gõ \\*#06# trong ứng dụng Điện thoại. Màn hình sẽ hiện IMEI, hoặc cả hai IMEI nếu là máy 2 SIM. Trang hỗ trợ Samsung Mỹ cho biết số sê-ri cũng hiện ở đó."
+            },
+            {
+              "title": "Mở Cài đặt > Thông tin điện thoại",
+              "text": "Xem IMEI, số sê-ri và số model. Samsung cho biết ở máy đời cũ, có thể bạn phải chạm vào mục Trạng thái trước."
+            },
+            {
+              "title": "So với tem hộp",
+              "text": "Mọi chữ số của từng IMEI phải khớp, số model và số sê-ri cũng vậy. Sai một số tức là hộp này của một máy khác."
+            },
+            {
+              "title": "Tra bảo hành và hỏi nhà mạng",
+              "text": "Nhập từng IMEI vào trang kiểm tra bảo hành của Samsung Việt Nam, rồi hỏi nhà mạng xem IMEI đó có bị chặn không (xem phần tiếp theo)."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Hộp và máy không khớp",
+          "text": "IMEI trên hộp và trên máy không khớp có ba khả năng: hộp là của máy khác, máy đã bị thay linh kiện, hoặc mã nhận dạng của máy đã bị can thiệp. GSMA cảnh báo rằng thiết bị có thông tin không khớp với máy thật có thể là hàng giả hoặc đã bị sửa mã nhận dạng. Đừng mua chỉ vì người bán giải thích nghe có lý."
+        },
+        {
+          "type": "h3",
+          "text": "Sao không đọc IMEI ở mặt lưng máy cho nhanh?"
+        },
+        {
+          "type": "p",
+          "text": "Đọc được, nhưng hãy coi đó là bước kiểm tra thứ ba chứ không phải bước chính. Samsung cho biết IMEI và số sê-ri được in chữ nhỏ ở gần cạnh dưới mặt lưng máy. Số đáng tin nhất vẫn là số do phần mềm của máy hiển thị. Chỉ những máy Samsung đời cũ có pin tháo rời mới ghi IMEI dưới pin. [Trang hỗ trợ của Samsung Ireland](https://www.samsung.com/ie/support/mobile-devices/how-do-i-find-the-imei-model-number-and-serial-number-for-samsung-galaxy-device) dặn không được tự tháo pin ở máy đời mới, vì có thể làm hỏng máy và mất bảo hành."
+        },
+        {
+          "type": "h3",
+          "text": "S8 vỡ màn hình thì xem IMEI bằng cách nào?"
+        },
+        {
+          "type": "p",
+          "text": "Hãy dùng hộp, và nếu được thì vào Cài đặt bằng cách khác. Trang của Samsung Ireland cho biết bạn vẫn vào được menu cài đặt bằng cách cắm chuột USB hoặc kết nối máy với TV. Nếu máy đã đăng nhập tài khoản Google, dịch vụ Find Hub (trước đây là Find My Device) của Google sẽ hiện IMEI: vào android.com/find rồi chọn Cài đặt cạnh tên máy. Nếu người bán có tài khoản Samsung, trang Samsung Mỹ cho biết ứng dụng Samsung Members hiển thị các số này trong mục Hỗ trợ. Người bán không cho bạn xem được IMEI từ chính chiếc máy thì bạn chỉ còn dựa vào cái hộp, và như thế là không đủ."
+        }
+      ]
+    },
+    {
+      "id": "tra-imei-samsung-cu-tai-viet-nam",
+      "title": "Tra IMEI Samsung cũ ở Việt Nam bằng cách nào?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Bạn tra bảo hành trên trang kiểm tra bảo hành điện tử của Samsung Việt Nam, và hỏi nhà mạng di động (Viettel, VinaPhone, MobiFone) xem IMEI có bị chặn không. Hai nơi trả lời hai câu hỏi khác nhau, nên hãy làm cả hai cho mọi IMEI của máy."
+        },
+        {
+          "type": "table",
+          "caption": "Các cách kiểm tra IMEI của điện thoại Samsung cũ mà người mua cá nhân ở Việt Nam làm được, đọc ngày 27/11/2026",
+          "headers": [
+            "Cách kiểm tra",
+            "Đơn vị trả lời",
+            "Bạn đưa gì",
+            "Kết quả cho biết gì"
+          ],
+          "rows": [
+            [
+              "[Kiểm tra thời hạn bảo hành điện tử](https://www.samsung.com/vn/support/mobiledevices/warranty-check)",
+              "Samsung Việt Nam",
+              "Nhóm sản phẩm, rồi IMEI hoặc số sê-ri, kèm reCAPTCHA",
+              "Ngày kích hoạt, ngày hết hạn bảo hành và ngày hết hạn bảo hành mở rộng (nếu có)"
+            ],
+            [
+              "Hỏi nhà mạng",
+              "Nhà mạng bạn dùng: Viettel, VinaPhone hoặc MobiFone",
+              "Từng IMEI của máy",
+              "IMEI có đang bị chặn hay không. Cách hỏi và nội dung trả lời do từng nhà mạng quyết định"
+            ]
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Trang bảo hành của Samsung Việt Nam cho biết những gì?"
+        },
+        {
+          "type": "p",
+          "text": "Theo trang của Samsung Việt Nam, tính đến tháng 11/2026, kết quả tra gồm ngày kích hoạt và ngày hết hạn bảo hành của sản phẩm. S8 đã hết bảo hành tiêu chuẩn từ lâu, nhưng nếu có ngày kích hoạt thì bạn biết máy từng được đăng ký trong hệ thống bảo hành của Samsung Việt Nam. Máy xách tay từ nước ngoài có thể không ra kết quả nào, và điều đó không chứng minh máy tốt hay xấu. Muốn xác nhận thông tin bảo hành, trang này hướng bạn liên hệ bộ phận chăm sóc khách hàng của Samsung Việt Nam qua Zalo."
+        },
+        {
+          "type": "h3",
+          "text": "Vì sao không tự tra IMEI trên GSMA Device Check được?"
+        },
+        {
+          "type": "p",
+          "text": "GSMA Device Check, dịch vụ do GSMA vận hành để xem một máy có bị gắn cờ mất hoặc trộm trong cơ sở dữ liệu thiết bị của GSMA hay không, không mở cho cá nhân. Theo [trang đăng nhập của GSMA Device Check](https://devicecheck.gsma.com/rtlapp), tính đến tháng 11/2026, người dùng phải có User ID và mật khẩu, và dịch vụ dành cho cơ quan nhà nước (công an, cơ quan quản lý) và doanh nghiệp như cửa hàng điện thoại, công ty bảo hiểm, trung tâm sửa chữa. [Trang câu hỏi thường gặp của GSMA](https://devicecheck.gsma.com/rtlapp/faqs/) khuyên người tiêu dùng liên hệ nhà mạng của mình, vì nhà mạng kiểm tra được tài khoản và hoạt động gần đây của máy."
+        },
+        {
+          "type": "p",
+          "text": "Người bán nói máy từng bị chặn \"do nhầm\" thì GSMA khuyên bạn thận trọng, vì dữ liệu chặn đến từ các nhà mạng. Hãy đọc từng IMEI cho nhà mạng của bạn và chỉ trả tiền khi đã có câu trả lời."
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "S8 có dùng được với mạng ở Việt Nam không?",
+          "text": "IMEI sạch không cho biết một máy đời cũ có dùng được với mạng Việt Nam sau khi tắt sóng 2G hay không. Chuyện đó phụ thuộc vào quy định của nhà mạng, xem bài [mua điện thoại ở đâu uy tín](/huong-dan/mua-dien-thoai-o-dau-uy-tin). Hãy lắp SIM của bạn vào máy và gọi thử một cuộc trước khi trả tiền. Từ tháng 4/2026, chuyển SIM sang máy khác có thể bị nhà mạng tạm khóa chiều gọi đi và SMS cho đến khi bạn xác thực lại khuôn mặt trên VNeID hoặc ứng dụng nhà mạng."
+        },
+        {
+          "type": "p",
+          "text": "Điện thoại cũ trên eno.vn nằm trong mục [Đồ điện tử](/c/electronics). eno.vn không xác minh người bán hay thiết bị, nên hãy xin ảnh tem hộp và màn hình \\*#06# trước khi hẹn gặp, rồi tự tra bảo hành ở Samsung Việt Nam và hỏi nhà mạng về IMEI."
+        }
+      ]
+    },
+    {
+      "id": "galaxy-s8-co-hai-so-imei",
+      "title": "Vì sao Galaxy S8 của tôi có hai số IMEI?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "S8 hiện hai IMEI là bản 2 SIM. Theo [bài IMEI trên Wikipedia](https://en.wikipedia.org/wiki/International_Mobile_Equipment_Identity), thiết bị 2 SIM thường có hai IMEI, mỗi khe SIM một số. Cả hai số phải hiện ra khi bấm \\*#06# và có trên tem hộp."
+        },
+        {
+          "type": "p",
+          "text": "Lần đối chiếu nào cũng phải so cả hai số, tra cả hai ở Samsung Việt Nam và hỏi nhà mạng về cả hai, vì có thể một IMEI sạch còn IMEI kia bị chặn. Hộp ghi một IMEI mà máy hiện hai, hoặc ngược lại, thì hộp đó là của một phiên bản S8 khác."
+        }
+      ]
+    },
+    {
+      "id": "bai-nay-khong-de-cap",
+      "title": "Bài này không đề cập",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "Các dòng Galaxy khác. Trang hỗ trợ của Samsung hướng dẫn cách xem IMEI giống nhau cho mọi điện thoại Galaxy, nhưng tem hộp khác nhau theo dòng máy và năm sản xuất. Nếu bạn quan tâm dòng mới, xem [Samsung S26 Ultra có mấy màu](/huong-dan/mau-sac-samsung-s26-ultra).",
+            "Máy nào còn dùng được với mạng Việt Nam sau khi tắt sóng 2G: xem [mua điện thoại ở đâu uy tín](/huong-dan/mua-dien-thoai-o-dau-uy-tin) và [điện thoại rẻ nhất Việt Nam](/huong-dan/dien-thoai-gia-re-nhat-viet-nam).",
+            "Phải làm gì khi điện thoại của chính bạn bị mất trộm. Hãy hỏi nhà mạng về việc chặn IMEI và trình báo công an.",
+            "Lịch sử sửa chữa và độ chai pin. Tra IMEI không cho biết hai thông tin này, nên hãy nhờ trung tâm bảo hành Samsung kiểm tra máy."
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "IMEI trên hộp Samsung S8 nằm ở đâu?",
+      "a": "IMEI trên hộp Samsung Galaxy S8 được in trên tem nhãn dán ở mặt ngoài vỏ hộp, gần mã vạch và cạnh số sê-ri, số model. Trang hỗ trợ của Samsung cho biết hộp gốc có thể ghi đầy đủ IMEI và số sê-ri của máy. Hộp của S8 bản 2 SIM thường ghi hai số, là IMEI 1 và IMEI 2."
+    },
+    {
+      "q": "IMEI trên hộp có giống IMEI trong máy Samsung không?",
+      "a": "IMEI trên hộp Samsung phải giống hệt IMEI máy hiển thị khi bấm dấu sao, dấu thăng, 0, 6, dấu thăng, hoặc khi vào Cài đặt rồi Thông tin điện thoại. Lệch dù chỉ một số thì hộp là của máy khác, hoặc máy đã bị thay linh kiện hay sửa mã nhận dạng. Đừng mua điện thoại Samsung cũ có IMEI không khớp với hộp."
+    },
+    {
+      "q": "Không có hộp thì xem IMEI Samsung S8 bằng cách nào?",
+      "a": "Không có hộp, bạn xem IMEI của Samsung Galaxy S8 bằng cách bấm dấu sao, dấu thăng, 0, 6, dấu thăng trong ứng dụng Điện thoại, hoặc vào Cài đặt rồi Thông tin điện thoại. Samsung cho biết IMEI còn được in chữ nhỏ ở mặt lưng máy. Find Hub (trước đây là Find My Device) của Google hiện IMEI của máy đã đăng nhập tài khoản Google, còn ứng dụng Samsung Members hiện IMEI của máy đã đăng ký tài khoản Samsung."
+    },
+    {
+      "q": "IMEI Samsung có bao nhiêu số?",
+      "a": "IMEI của điện thoại Samsung có 15 chữ số, giống mọi IMEI khác. 8 số đầu là mã TAC cho biết dòng máy, số cuối cùng là số kiểm tra tính theo thuật toán Luhn. Nếu bạn thấy một dãy 16 chữ số thì nhiều khả năng đó là IMEISV, có 2 số cuối là phiên bản phần mềm thay cho số kiểm tra."
+    },
+    {
+      "q": "Vì sao Galaxy S8 có 2 số IMEI?",
+      "a": "Galaxy S8 có hai số IMEI là bản 2 SIM, vì điện thoại 2 SIM thường có một IMEI cho mỗi khe SIM. Cả hai IMEI cùng hiện ra khi bấm dấu sao, dấu thăng, 0, 6, dấu thăng, và hộp gốc cũng phải ghi đủ hai số. Khi mua S8 bản 2 SIM đã qua sử dụng, hãy so cả hai IMEI với hộp và hỏi nhà mạng xem cả hai IMEI có bị chặn không."
+    },
+    {
+      "q": "Cách kiểm tra điện thoại Samsung cũ có phải máy bị trộm không?",
+      "a": "Để biết điện thoại Samsung cũ có bị báo mất trộm không, hãy đọc từng IMEI của máy cho nhà mạng như Viettel, VinaPhone hoặc MobiFone và hỏi IMEI đó có bị chặn không. GSMA Device Check chỉ dành cho cơ quan nhà nước và doanh nghiệp có tài khoản đăng nhập, nên người mua cá nhân không tự tra được, và GSMA khuyên người tiêu dùng liên hệ nhà mạng. Người bán không cho bạn ghi IMEI thì đừng mua."
+    },
+    {
+      "q": "Kiểm tra bảo hành Samsung bằng IMEI ở Việt Nam được không?",
+      "a": "Được. Trang kiểm tra thời hạn bảo hành điện tử của Samsung Việt Nam nhận IMEI hoặc số sê-ri và hiện ngày kích hoạt, ngày hết hạn bảo hành. Samsung Galaxy S8 đã hết bảo hành tiêu chuẩn, nhưng ngày kích hoạt cho biết máy từng được đăng ký trong hệ thống bảo hành của Samsung Việt Nam. Máy xách tay từ nước ngoài có thể không ra kết quả."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Find your Samsung phone or tablet's IMEI, model, or serial number",
+      "publisher": "Samsung",
+      "url": "https://www.samsung.com/us/support/answer/ANS00048604/"
+    },
+    {
+      "title": "Kiểm tra thời hạn bảo hành điện tử",
+      "publisher": "Samsung Vietnam",
+      "url": "https://www.samsung.com/vn/support/mobiledevices/warranty-check"
+    },
+    {
+      "title": "How do I find the IMEI, model number and serial number for a Samsung Galaxy device?",
+      "publisher": "Samsung",
+      "url": "https://www.samsung.com/ie/support/mobile-devices/how-do-i-find-the-imei-model-number-and-serial-number-for-samsung-galaxy-device"
+    },
+    {
+      "title": "Find your Galaxy phone's IMEI, model number or serial number",
+      "publisher": "Samsung",
+      "url": "https://www.samsung.com/ca/support/mobile-devices/galaxy-phone-imei/"
+    },
+    {
+      "title": "GSMA Device Check",
+      "publisher": "GSMA",
+      "url": "https://devicecheck.gsma.com/rtlapp"
+    },
+    {
+      "title": "Device Check FAQs",
+      "publisher": "GSMA",
+      "url": "https://devicecheck.gsma.com/rtlapp/faqs/"
+    },
+    {
+      "title": "International Mobile Equipment Identity",
+      "publisher": "Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/International_Mobile_Equipment_Identity"
+    }
+  ],
+  "related": [],
+  "lastChecked": "2026-11-27",
+  "images": {
+    "hero": {
+      "id": "becb8d1f9e566e621eb3802ef597513510262919fd8aa6e0125fce2a64d0f415",
+      "w": 1672,
+      "h": 941,
+      "alt": "Kính lúp làm nổi bật nhãn trừu tượng trên hộp điện thoại màu xanh bên cạnh điện thoại cách điệu.",
+      "caption": "Tìm IMEI trên hộp và đối chiếu với điện thoại."
+    },
+    "figures": [
+      {
+        "id": "c734dded9a45be997c307d6a650668bf33ec5e07a63c39282ec5f31ab41011fb",
+        "w": 1448,
+        "h": 1086,
+        "after": "cach-kiem-tra-imei-hop-trung-voi-may",
+        "alt": "Các hình màu giống nhau trên nhãn hộp và màn hình điện thoại tượng trưng cho việc đối chiếu mã nhận dạng.",
+        "caption": "Kiểm tra IMEI trên điện thoại có trùng khớp hoàn toàn với IMEI trên hộp."
+      }
+    ]
+  }
+}
