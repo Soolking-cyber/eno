@@ -4,6 +4,7 @@ const h = vi.hoisted(() => ({ searchArgs: [] as unknown[], search: vi.fn(), deta
 
 vi.mock('@/lib/db', () => ({ db: { listing: { findMany: h.findMany } } }))
 vi.mock('@/lib/log', () => ({ logError: vi.fn() }))
+vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: object) => ({ AND: [w, { scope: 'marketplace' }] }) }))
 
 vi.mock('@/app/api/mcp/search/tools', () => {
   class SearchToolError extends Error { constructor(readonly code: string, m: string) { super(m) } }
@@ -89,9 +90,10 @@ describe("a partner shop's own return policy (owner 2026-11-28)", () => {
     h.findMany.mockResolvedValue([{ id: 'b', sellerId: CPS }, { id: 'c', sellerId: HAGA }, { id: 'd', sellerId: CPS }])
     const out = await ucpSearch({ query: 'phone' })
     // Only partner sellers are asked for: no other seller's id is read.
-    const where = h.findMany.mock.calls[0][0].where
-    expect(where.id).toEqual({ in: ['a', 'b', 'c', 'd'] })
-    expect(where.sellerId.in).toContain(CPS)
+    const where = h.findMany.mock.calls[0][0].where.AND
+    expect(where[1]).toEqual({ scope: 'marketplace' })
+    expect(where[0].id).toEqual({ in: ['a', 'b', 'c', 'd'] })
+    expect(where[0].sellerId.in).toContain(CPS)
     expect(out.products[0].variants[0]).not.toHaveProperty('seller')
     expect(out.products[1].variants[0].seller).toEqual({ name: 'CellphoneS', links: [{ type: 'refund_policy', url: 'https://cellphones.com.vn/tos?part=refund-policy', title: 'CellphoneS return policy' }] })
     expect(out.policies).toEqual([

@@ -1,6 +1,7 @@
 import { SEARCH_TOOLS_BY_NAME, SearchToolError } from '@/app/api/mcp/search/tools'
 import { OAUTH_ISSUER } from '@/lib/api/oauth'
 import { db } from '@/lib/db'
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { logError } from '@/lib/log'
 import { PARTNER_RETURN_POLICIES, type PartnerReturnPolicy } from '@/lib/partner-return-policies'
 import { TAXONOMY } from '@/lib/taxonomy'
@@ -90,7 +91,9 @@ function categoryName(slug: string): string {
 async function partnerPolicies(ids: string[]): Promise<Map<string, PartnerReturnPolicy>> {
   if (!ids.length) return new Map()
   try {
-    const rows = await db.listing.findMany({ where: { id: { in: ids }, sellerId: { in: Object.keys(PARTNER_RETURN_POLICIES) } }, select: { id: true, sellerId: true } })
+    // Scoped like every public listing read (edition-lint Rule A), though these ids are rows the scoped search just showed.
+    const where = await scopedListingWhere({ id: { in: ids }, sellerId: { in: Object.keys(PARTNER_RETURN_POLICIES) } })
+    const rows = await db.listing.findMany({ where, select: { id: true, sellerId: true } })
     return new Map(rows.map((r) => [r.id, PARTNER_RETURN_POLICIES[r.sellerId]] as const))
   } catch (e) {
     // Degrade, never fail: the products still go out, without the shop's policy (commit gate 2026-11-28).
