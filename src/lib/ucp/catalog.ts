@@ -1,5 +1,8 @@
 import { SEARCH_TOOLS_BY_NAME, SearchToolError } from '@/app/api/mcp/search/tools'
 import { OAUTH_ISSUER } from '@/lib/api/oauth'
+import { db } from '@/lib/db'
+import { logError } from '@/lib/log'
+import { PARTNER_RETURN_POLICIES, type PartnerReturnPolicy } from '@/lib/partner-return-policies'
 import { TAXONOMY } from '@/lib/taxonomy'
 
 /**
@@ -20,6 +23,9 @@ import { TAXONOMY } from '@/lib/taxonomy'
  * runs the site's own feed (verified, active, edition-scoped, teachers excluded, withheld aisles dropped) and its detail
  * read the listing page's rule; both strip contact details from seller text. A commission (affiliate) listing carries
  * the tag `sponsored`, the disclosure the site prints.
+ * A PARTNER SHOP'S product names the shop and links its own return policy (src/lib/partner-return-policies.ts, owner
+ * 2026-11-28): `variants[].seller` {name, links: refund_policy} and a response `policies` entry
+ * (dev.ucp.shopping.policy.return) whose `applies_to` points at those products. Other sellers carry neither.
  */
 export const UCP_VERSION = '2026-08-25'
 const SPEC = `https://ucp.dev/${UCP_VERSION}`
@@ -77,8 +83,54 @@ function categoryName(slug: string): string {
   return TAXONOMY.find((c) => c.slug === slug)?.name ?? slug
 }
 
+/**
+ * Which of these listings a partner shop sells: listing id → its return policy. One read, and only partner rows come back
+ * (`sellerId IN` the policy map) — no other seller's id is ever read into this module, let alone sent.
+ */
+async function partnerPolicies(ids: string[]): Promise<Map<string, PartnerReturnPolicy>> {
+  if (!ids.length) return new Map()
+  try {
+    const rows = await db.listing.findMany({ where: { id: { in: ids }, sellerId: { in: Object.keys(PARTNER_RETURN_POLICIES) } }, select: { id: true, sellerId: true } })
+    return new Map(rows.map((r) => [r.id, PARTNER_RETURN_POLICIES[r.sellerId]] as const))
+  } catch (e) {
+    // Degrade, never fail: the products still go out, without the shop's policy (commit gate 2026-11-28).
+    logError(e, { where: 'ucp.partner-policies' })
+    return new Map()
+  }
+}
+
+type Lang = 'en' | 'vi'
+/** The request's `context.language` (context.json): Vietnamese when it starts with "vi", else English. */
+function langOf(req: Json): Lang {
+  const context = isRecord(req.context) ? req.context : {}
+  return typeof context.language === 'string' && context.language.toLowerCase().startsWith('vi') ? 'vi' : 'en'
+}
+const policyText = (name: string, lang: Lang) =>
+  lang === 'vi'
+    ? `Bán bởi ${name}: đổi trả và hoàn tiền theo chính sách riêng của ${name} trên website của họ.`
+    : `Sold by ${name}: returns, exchanges and refunds follow ${name}'s own policy on its website.`
+const policyTitle = (name: string, lang: Lang) => (lang === 'vi' ? `Chính sách đổi trả của ${name}` : `${name} return policy`)
+
+/** The response's `policies` (policy.json): one return policy per partner, over the products it sells (`applies_to`). */
+type ReturnPolicyOut = { type: 'dev.ucp.shopping.policy.return'; description: { plain: string }; url: string; applies_to: string[] }
+function returnPolicies(targets: { path: string; policy: PartnerReturnPolicy | undefined }[], lang: Lang): ReturnPolicyOut[] {
+  const byUrl = new Map<string, { policy: PartnerReturnPolicy; paths: string[] }>()
+  for (const t of targets) {
+    if (!t.policy) continue
+    const g = byUrl.get(t.policy.url) ?? { policy: t.policy, paths: [] }
+    g.paths.push(t.path)
+    byUrl.set(t.policy.url, g)
+  }
+  return [...byUrl.values()].map(({ policy, paths }) => ({
+    type: 'dev.ucp.shopping.policy.return' as const,
+    description: { plain: policyText(policy.name, lang) },
+    url: policy.url,
+    applies_to: paths,
+  }))
+}
+
 /** One listing → a UCP product with its single variant (a listing is one item; its id is both). */
-function toProduct(r: Row, inputs?: { id: string; match: string }[]) {
+function toProduct(r: Row, inputs?: { id: string; match: string }[], policy?: PartnerReturnPolicy, lang: Lang = 'en') {
   const where = [r.location, r.district, r.city].filter(Boolean).join(', ')
   // Required and non-empty (description.json minProperties 1): the seller's text when the read has it, else what the card shows.
   const plain = r.description?.trim() || [r.title, r.condition && `Condition: ${r.condition}`, where].filter(Boolean).join('. ')
@@ -90,7 +142,8 @@ function toProduct(r: Row, inputs?: { id: string; match: string }[]) {
     url: r.url,
     price,
     availability: { available: true, status: 'in_stock' },
-    // No `seller`: the public rows carry no seller (the MCP projection's rule — no seller id leaves); the page names them.
+    // `seller` only for a partner shop (its public name and its own return policy); a private seller is named on the page.
+    ...(policy ? { seller: { name: policy.name, links: [{ type: 'refund_policy', url: policy.url, title: policyTitle(policy.name, lang) }] } } : {}),
     ...(inputs ? { inputs } : {}),
   }
   return {
@@ -142,8 +195,7 @@ export async function ucpSearch(body: unknown) {
   if (cats.length && !slugs.length) messages.push({ type: 'info', code: 'not_found', content: `No category here matches ${cats.slice(0, 3).join(', ')}; searched every category.` })
   else if (slugs.length > 1) messages.push({ type: 'info', content: `Searched the first matching category (${slugs[0]}) only.` })
   const price = isRecord(filters.price) ? filters.price : {}
-  const context = isRecord(req.context) ? req.context : {}
-  const lang = typeof context.language === 'string' && context.language.toLowerCase().startsWith('vi') ? 'vi' : 'en'
+  const lang = langOf(req)
   const tool = SEARCH_TOOLS_BY_NAME.get('search_listings')!
   const out = (await tool.handler({
     q: typeof req.query === 'string' ? req.query : undefined,
@@ -156,13 +208,17 @@ export async function ucpSearch(body: unknown) {
     offset,
     lang,
   })) as { total: number; listings: (Omit<Row, 'images'> & { image: string | null })[]; next_offset: number | null }
-  const products = out.listings.filter(priced).map((l) => toProduct({ ...l, images: l.image ? [l.image] : [] }))
+  const rows = out.listings.filter(priced)
+  const partners = await partnerPolicies(rows.map((l) => l.id))
+  const products = rows.map((l) => toProduct({ ...l, images: l.image ? [l.image] : [] }, undefined, partners.get(l.id), lang))
+  const policies = returnPolicies(rows.map((l, i) => ({ path: `$.products[${i}]`, policy: partners.get(l.id) })), lang)
   // The MCP search already stops at offset 200; held here too, so a cursor this catalog issues always decodes.
   const hasNext = out.next_offset !== null && out.next_offset <= OFFSET_MAX
   return {
     ucp: meta(UCP_SEARCH),
     products,
     pagination: { has_next_page: hasNext, ...(hasNext ? { cursor: encodeCursor(out.next_offset!) } : {}), total_count: out.total },
+    ...(policies.length ? { policies } : {}),
     ...(messages.length ? { messages } : {}),
   }
 }
@@ -188,11 +244,16 @@ export async function ucpLookup(body: unknown) {
   if (ids.length > LOOKUP_MAX) throw new UcpRequestError('invalid_request', `At most ${LOOKUP_MAX} ids per lookup.`)
   const unique = [...new Set(ids)]
   const found = await Promise.all(unique.map(async (id) => [id, await readOne(id)] as const))
-  const products = found.filter(([, r]) => r).map(([id, r]) => toProduct(r!, [{ id, match: 'exact' }]))
+  const hits = found.filter(([, r]) => r)
+  const partners = await partnerPolicies(hits.map(([, r]) => r!.id))
+  const lang = langOf(req)
+  const products = hits.map(([id, r]) => toProduct(r!, [{ id, match: 'exact' }], partners.get(r!.id), lang))
+  const policies = returnPolicies(hits.map(([, r], i) => ({ path: `$.products[${i}]`, policy: partners.get(r!.id) })), lang)
   const missing = found.filter(([, r]) => !r).map(([id]) => id)
   return {
     ucp: meta(UCP_LOOKUP),
     products,
+    ...(policies.length ? { policies } : {}),
     ...(missing.length ? { messages: missing.map((id) => ({ type: 'info', code: 'not_found', content: id })) } : {}),
   }
 }
@@ -205,5 +266,8 @@ export async function ucpProduct(body: unknown): Promise<{ status: number; body:
   const r = await readOne(id)
   // A business outcome, not a transport failure: HTTP 200 with ucp.status "error" (the catalog REST binding's rule).
   if (!r) return { status: 200, body: ucpError(UCP_LOOKUP, 'not_found', `No live listing for sale has the id ${id}.`) }
-  return { status: 200, body: { ucp: meta(UCP_LOOKUP), product: toProduct(r) } }
+  const policy = (await partnerPolicies([r.id])).get(r.id)
+  const lang = langOf(req)
+  const policies = returnPolicies([{ path: '$.product', policy }], lang)
+  return { status: 200, body: { ucp: meta(UCP_LOOKUP), product: toProduct(r, undefined, policy, lang), ...(policies.length ? { policies } : {}) } }
 }

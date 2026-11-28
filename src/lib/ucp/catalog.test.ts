@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const h = vi.hoisted(() => ({ searchArgs: [] as unknown[], search: vi.fn(), detail: vi.fn() }))
+const h = vi.hoisted(() => ({ searchArgs: [] as unknown[], search: vi.fn(), detail: vi.fn(), findMany: vi.fn() }))
+
+vi.mock('@/lib/db', () => ({ db: { listing: { findMany: h.findMany } } }))
+vi.mock('@/lib/log', () => ({ logError: vi.fn() }))
 
 vi.mock('@/app/api/mcp/search/tools', () => {
   class SearchToolError extends Error { constructor(readonly code: string, m: string) { super(m) } }
@@ -25,7 +28,12 @@ beforeEach(() => {
   h.searchArgs.length = 0
   h.search.mockReset()
   h.detail.mockReset()
+  h.findMany.mockReset()
+  h.findMany.mockResolvedValue([])
 })
+
+const CPS = 'cmt78nvif0000gpq48kvzmxjw' // CellphoneS
+const HAGA = 'ed20fff4-0ba5-4ee4-a032-743d9c7cdd4d'
 
 describe('UCP profile', () => {
   it('declares the REST shopping service, the two catalog capabilities and no payment handlers (2026-08-25)', () => {
@@ -72,6 +80,49 @@ describe('catalog search', () => {
     // A row without a positive price is never published.
     h.search.mockResolvedValue({ total: 2, listings: [row('free', { price: 0 }), row('ok')], next_offset: null })
     expect((await ucpSearch({})).products.map((p) => p.id)).toEqual(['ok'])
+  })
+})
+
+describe("a partner shop's own return policy (owner 2026-11-28)", () => {
+  it('search: partner products name the shop with a refund_policy link; one return policy per shop over its products', async () => {
+    h.search.mockResolvedValue({ total: 4, listings: [row('a'), row('b'), row('c'), row('d')], next_offset: null })
+    h.findMany.mockResolvedValue([{ id: 'b', sellerId: CPS }, { id: 'c', sellerId: HAGA }, { id: 'd', sellerId: CPS }])
+    const out = await ucpSearch({ query: 'phone' })
+    // Only partner sellers are asked for: no other seller's id is read.
+    const where = h.findMany.mock.calls[0][0].where
+    expect(where.id).toEqual({ in: ['a', 'b', 'c', 'd'] })
+    expect(where.sellerId.in).toContain(CPS)
+    expect(out.products[0].variants[0]).not.toHaveProperty('seller')
+    expect(out.products[1].variants[0].seller).toEqual({ name: 'CellphoneS', links: [{ type: 'refund_policy', url: 'https://cellphones.com.vn/tos?part=refund-policy', title: 'CellphoneS return policy' }] })
+    expect(out.policies).toEqual([
+      expect.objectContaining({ type: 'dev.ucp.shopping.policy.return', url: 'https://cellphones.com.vn/tos?part=refund-policy', applies_to: ['$.products[1]', '$.products[3]'] }),
+      expect.objectContaining({ type: 'dev.ucp.shopping.policy.return', url: 'https://hagasmartech.com/chinh-sach-doi-tra-hang-va-hoan-tien', applies_to: ['$.products[2]'] }),
+    ])
+    expect(out.policies![0].description.plain).toMatch(/CellphoneS's own policy/)
+  })
+
+  it('no partner product, no policies member; product and lookup point at their own nodes', async () => {
+    h.search.mockResolvedValue({ total: 1, listings: [row('a')], next_offset: null })
+    expect(await ucpSearch({})).not.toHaveProperty('policies')
+    h.detail.mockResolvedValue({ listing: { ...row('p'), images: [], status: 'active', description: 'x' } })
+    h.findMany.mockResolvedValue([{ id: 'p', sellerId: HAGA }])
+    const one = (await ucpProduct({ id: 'p' })).body as { product: { variants: { seller?: { name: string } }[] }; policies: { applies_to: string[] }[] }
+    expect(one.product.variants[0].seller?.name).toBe('HAGA Smartech')
+    expect(one.policies[0].applies_to).toEqual(['$.product'])
+    const many = await ucpLookup({ ids: ['p'] })
+    expect(many.policies?.[0]).toMatchObject({ applies_to: ['$.products[0]'] })
+    // In Vietnamese when the agent asks in Vietnamese.
+    const vi = await ucpLookup({ ids: ['p'], context: { language: 'vi-VN' } })
+    expect(vi.policies?.[0].description.plain).toMatch(/^Bán bởi HAGA Smartech: đổi trả/)
+    expect(vi.products[0].variants[0]).toMatchObject({ seller: { links: [{ title: 'Chính sách đổi trả của HAGA Smartech' }] } })
+  })
+
+  it('a failed partner read still returns the products, without policies', async () => {
+    h.search.mockResolvedValue({ total: 1, listings: [row('a')], next_offset: null })
+    h.findMany.mockRejectedValue(new Error('pool exhausted'))
+    const out = await ucpSearch({})
+    expect(out.products.map((p) => p.id)).toEqual(['a'])
+    expect(out).not.toHaveProperty('policies')
   })
 })
 
