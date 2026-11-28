@@ -14,9 +14,9 @@ export type ToolEntry = { slug: string; published: string; reviewed: string; rev
 export const TOOLS: readonly ToolEntry[] = [
   // <generated-tools>
   { slug: 'motorbike-rent-vs-buy-calculator', published: '2026-11-24', reviewed: '2026-11-24', reviewedDigest: '67605bd18483a3b2' },
-  { slug: 'home-loan-payment-calculator', published: '2026-11-28', reviewed: '2026-11-25', reviewedDigest: '673347c395763b24' },
-  { slug: 'roommate-rent-split-calculator', published: '2026-11-28', reviewed: '2026-11-26', reviewedDigest: '9f9cda5f5b86462f' },
-  { slug: 'installment-plan-true-cost-calculator', published: '2026-11-28', reviewed: '2026-11-28', reviewedDigest: '665ed5e4c742ef7f' },
+  { slug: 'home-loan-payment-calculator', published: '2026-11-28', reviewed: '2026-11-28', reviewedDigest: '9c11032ad40afbe3' },
+  { slug: 'roommate-rent-split-calculator', published: '2026-11-28', reviewed: '2026-11-28', reviewedDigest: '9c3e04465b0c055a' },
+  { slug: 'installment-plan-true-cost-calculator', published: '2026-11-28', reviewed: '2026-11-28', reviewedDigest: '264eff4943783ea2' },
   { slug: 'rental-yield-calculator', published: '2026-11-28', reviewed: '2026-11-28', reviewedDigest: '1925a88630ecaa61' },
   // </generated-tools>
 ]

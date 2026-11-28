@@ -65,12 +65,12 @@
   "tests": [
     {
       "expect": {
-        "room1": 6066666.67,
-        "room2": 3966666.67,
-        "room3": 3966666.67,
+        "room1": 6066667,
+        "room2": 3966667,
+        "room3": 3966667,
         "room4": 0,
         "room5": 0,
-        "total": 14000000
+        "total": 14000001
       },
       "inputs": {
         "rent": 12000000,
@@ -103,11 +103,11 @@
     },
     {
       "expect": {
-        "room1": 7285714.29,
-        "room2": 4464285.71,
-        "room3": 4464285.71,
-        "room4": 3142857.14,
-        "room5": 3142857.14,
+        "room1": 7285714,
+        "room2": 4464286,
+        "room3": 4464286,
+        "room4": 3142857,
+        "room5": 3142857,
         "total": 22500000
       },
       "inputs": {
@@ -285,7 +285,7 @@
         "vi": "Phòng 1 trả mỗi tháng"
       },
       "format": "money",
-      "formula": "min(extra, rent) + (rent - min(extra, rent)) * area1 / (area1 + area2 + area3 + area4 + area5) + bills / (2 + if(area3 > 0, 1, 0) + if(area4 > 0, 1, 0) + if(area5 > 0, 1, 0))"
+      "formula": "round(min(extra, rent) + (rent - min(extra, rent)) * area1 / (area1 + area2 + area3 + area4 + area5) + bills / (2 + if(area3 > 0, 1, 0) + if(area4 > 0, 1, 0) + if(area5 > 0, 1, 0)))"
     },
     {
       "id": "room2",
@@ -294,7 +294,7 @@
         "vi": "Phòng 2 trả mỗi tháng"
       },
       "format": "money",
-      "formula": "(rent - min(extra, rent)) * area2 / (area1 + area2 + area3 + area4 + area5) + bills / (2 + if(area3 > 0, 1, 0) + if(area4 > 0, 1, 0) + if(area5 > 0, 1, 0))"
+      "formula": "round((rent - min(extra, rent)) * area2 / (area1 + area2 + area3 + area4 + area5) + bills / (2 + if(area3 > 0, 1, 0) + if(area4 > 0, 1, 0) + if(area5 > 0, 1, 0)))"
     },
     {
       "id": "room3",
@@ -303,7 +303,7 @@
         "vi": "Phòng 3 trả mỗi tháng"
       },
       "format": "money",
-      "formula": "if(area3 > 0, (rent - min(extra, rent)) * area3 / (area1 + area2 + area3 + area4 + area5) + bills / (2 + if(area3 > 0, 1, 0) + if(area4 > 0, 1, 0) + if(area5 > 0, 1, 0)), 0)"
+      "formula": "round(if(area3 > 0, (rent - min(extra, rent)) * area3 / (area1 + area2 + area3 + area4 + area5) + bills / (2 + if(area3 > 0, 1, 0) + if(area4 > 0, 1, 0) + if(area5 > 0, 1, 0)), 0))"
     },
     {
       "id": "room4",
@@ -312,7 +312,7 @@
         "vi": "Phòng 4 trả mỗi tháng"
       },
       "format": "money",
-      "formula": "if(area4 > 0, (rent - min(extra, rent)) * area4 / (area1 + area2 + area3 + area4 + area5) + bills / (2 + if(area3 > 0, 1, 0) + if(area4 > 0, 1, 0) + if(area5 > 0, 1, 0)), 0)"
+      "formula": "round(if(area4 > 0, (rent - min(extra, rent)) * area4 / (area1 + area2 + area3 + area4 + area5) + bills / (2 + if(area3 > 0, 1, 0) + if(area4 > 0, 1, 0) + if(area5 > 0, 1, 0)), 0))"
     },
     {
       "id": "room5",
@@ -321,7 +321,7 @@
         "vi": "Phòng 5 trả mỗi tháng"
       },
       "format": "money",
-      "formula": "if(area5 > 0, (rent - min(extra, rent)) * area5 / (area1 + area2 + area3 + area4 + area5) + bills / (2 + if(area3 > 0, 1, 0) + if(area4 > 0, 1, 0) + if(area5 > 0, 1, 0)), 0)"
+      "formula": "round(if(area5 > 0, (rent - min(extra, rent)) * area5 / (area1 + area2 + area3 + area4 + area5) + bills / (2 + if(area3 > 0, 1, 0) + if(area4 > 0, 1, 0) + if(area5 > 0, 1, 0)), 0))"
     },
     {
       "id": "total",
@@ -341,8 +341,8 @@
   ],
   "version": 1,
   "howItWorks": {
-    "en": "First, the extra you agree for the room with a private bathroom or balcony is charged to Room 1 and taken off the rent. If the extra is more than the whole rent, Room 1 simply pays the whole rent.\n\nThe rest of the rent is split by floor area: each room pays its square metres divided by the total square metres of all bedrooms in use. A room of 16 m² in a home with 40 m² of bedrooms pays 40% of that remaining rent.\n\nThe bills are split equally between the rooms in use. Rooms 1 and 2 always count; Rooms 3, 4 and 5 count only when their area is more than 0.\n\nThe last line adds every share together, so you can check it matches the rent plus the bills.",
-    "vi": "Trước hết, khoản cộng thêm mà mọi người thỏa thuận cho phòng có phòng tắm riêng hoặc ban công được tính cho Phòng 1 và trừ khỏi tiền thuê. Nếu khoản này lớn hơn cả tiền thuê, Phòng 1 chỉ trả đúng toàn bộ tiền thuê.\n\nPhần tiền thuê còn lại được chia theo diện tích: mỗi phòng trả theo số mét vuông của mình chia cho tổng diện tích các phòng ngủ đang dùng. Phòng 16 m² trong căn có tổng 40 m² phòng ngủ sẽ trả 40% phần tiền thuê còn lại.\n\nCác khoản phí chung được chia đều cho các phòng đang dùng. Phòng 1 và Phòng 2 luôn được tính; Phòng 3, 4 và 5 chỉ được tính khi diện tích lớn hơn 0.\n\nDòng cuối cộng tất cả các phần lại để bạn đối chiếu với tiền thuê cộng tổng phí."
+    "en": "First, the extra you agree for the room with a private bathroom or balcony is charged to Room 1 and taken off the rent. If the extra is more than the whole rent, Room 1 simply pays the whole rent.\n\nThe rest of the rent is split by floor area: each room pays its square metres divided by the total square metres of all bedrooms in use. A room of 16 m² in a home with 40 m² of bedrooms pays 40% of that remaining rent.\n\nThe bills are split equally between the rooms in use. Rooms 1 and 2 always count; Rooms 3, 4 and 5 count only when their area is more than 0.\n\nEach share is rounded to whole đồng. The last line adds the shares together, so it can differ from the rent plus the bills by a few đồng of rounding.",
+    "vi": "Trước hết, khoản cộng thêm mà mọi người thỏa thuận cho phòng có phòng tắm riêng hoặc ban công được tính cho Phòng 1 và trừ khỏi tiền thuê. Nếu khoản này lớn hơn cả tiền thuê, Phòng 1 chỉ trả đúng toàn bộ tiền thuê.\n\nPhần tiền thuê còn lại được chia theo diện tích: mỗi phòng trả theo số mét vuông của mình chia cho tổng diện tích các phòng ngủ đang dùng. Phòng 16 m² trong căn có tổng 40 m² phòng ngủ sẽ trả 40% phần tiền thuê còn lại.\n\nCác khoản phí chung được chia đều cho các phòng đang dùng. Phòng 1 và Phòng 2 luôn được tính; Phòng 3, 4 và 5 chỉ được tính khi diện tích lớn hơn 0.\n\nMỗi phần được làm tròn đến đồng. Dòng cuối cộng các phần lại, nên có thể chênh vài đồng so với tiền thuê cộng tổng phí do làm tròn."
   },
   "description": {
     "en": "Split a shared home's rent by bedroom floor area, add any private bathroom or balcony extra, and share the bills equally between two to five roommates.",

@@ -48,6 +48,13 @@
   },
   "notes": [
     {
+      "when": "downPayment > cashPrice",
+      "text": {
+        "en": "The down payment is more than the cash price, so the extra cost shown is your own overpayment, not a cost of the plan: check the figures you typed.",
+        "vi": "Số tiền trả trước lớn hơn giá trả thẳng, nên khoản chi thêm hiển thị là tiền bạn trả dư, không phải chi phí của gói trả góp: hãy kiểm tra lại số đã nhập."
+      }
+    },
+    {
       "text": {
         "en": "The plan adds up to less than the cash price: check the figures you typed.",
         "vi": "Tổng số tiền trả góp thấp hơn giá tiền mặt: hãy kiểm tra lại các con số đã nhập."
@@ -168,6 +175,24 @@
         "upfrontFee": 10000000,
         "downPayment": 180000000,
         "monthlyPayment": 8500000
+      }
+    },
+    {
+      "inputs": {
+        "months": 12,
+        "cashPrice": 24000000,
+        "monthlyFee": 0,
+        "upfrontFee": 0,
+        "downPayment": 30000000,
+        "monthlyPayment": 0
+      },
+      "expect": {
+        "totalPaid": 30000000,
+        "extraCost": 6000000,
+        "extraPercent": 25,
+        "amountBorrowed": 0,
+        "effectiveRate": 0,
+        "monthlyTotal": 0
       }
     }
   ],
@@ -312,7 +337,7 @@
         "vi": "Số tiền vay"
       },
       "format": "money",
-      "formula": "cashPrice - downPayment"
+      "formula": "max(cashPrice - downPayment, 0)"
     },
     {
       "id": "effectiveRate",

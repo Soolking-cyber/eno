@@ -72,11 +72,18 @@
       "when": "promoMonths >= termMonths"
     },
     {
+      "when": "promoMonths == 0 and loanAmount > 0",
+      "text": {
+        "en": "No promotional period is set, so the whole loan is at the floating rate and the promotional payment shows 0.",
+        "vi": "Không có thời gian ưu đãi, nên cả khoản vay tính theo lãi thả nổi và tiền trả với lãi ưu đãi hiển thị 0."
+      }
+    },
+    {
       "text": {
         "en": "The floating rate you typed is lower than the promotional rate.",
         "vi": "Lãi thả nổi bạn nhập đang thấp hơn lãi ưu đãi."
       },
-      "when": "floatRate < promoRate"
+      "when": "floatRate < promoRate and promoMonths > 0 and promoMonths < termMonths"
     },
     {
       "text": {
