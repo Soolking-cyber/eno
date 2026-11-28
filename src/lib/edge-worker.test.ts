@@ -247,13 +247,13 @@ describe('edge Worker — markdown negotiation reaches the origin (audit #88)', 
     expect(h.matched).toEqual([])
   })
 
-  it('⛔ an AI fetcher asking for /, /terms or /privacy with Accept: text/html is sent to the origin asking for markdown', async () => {
+  it('⛔ an AI fetcher that accepts any format, asking for /, /terms or /privacy, is sent to the origin asking for markdown', async () => {
     await call('/') // plant an HTML entry
-    for (const [ua, path] of [['Mozilla/5.0 (compatible; ChatGPT-User/1.0; +https://openai.com/bot)', '/'], ['Claude-User/1.0', '/terms'], ['Perplexity-User/1.0', '/privacy']]) {
+    for (const [ua, path, accept] of [['Mozilla/5.0 (compatible; ChatGPT-User/1.0; +https://openai.com/bot)', '/', '*/*'], ['Claude-User/1.0', '/terms', '*/*'], ['Perplexity-User/1.0', '/privacy', '']]) {
       h.matched = []
       h.origin = []
       h.respond = () => ({ html: '# eno.vn', headers: { 'content-type': 'text/markdown; charset=utf-8' } })
-      const r = await call(path, { 'user-agent': ua, accept: 'text/html' })
+      const r = await call(path, accept ? { 'user-agent': ua, accept } : { 'user-agent': ua })
       expect(r.headers.get('content-type'), `${ua} ${path}`).toMatch(/markdown/)
       expect(h.matched).toEqual([]) // never the stored HTML
       expect(h.origin.at(-1)!.headers.get('accept')).toBe('text/markdown')
@@ -272,12 +272,22 @@ describe('edge Worker — markdown negotiation reaches the origin (audit #88)', 
       ['Claude-SearchBot/1.0', '/', 'eno.vn'], ['PerplexityBot/1.0', '/', 'eno.vn'],
       ['Mozilla/5.0 (Macintosh) Safari/605.1.15', '/terms', 'eno.vn'], ['ChatGPT-User/1.0', '/c/rentals', 'eno.vn'], ['ChatGPT-User/1.0', '/', 'www.eno.forum'],
       ['ChatGPT-User/1.0', '/?category=teachers', 'eno.vn']]) {
-      const r = await worker.fetch(new Request(`https://${host}${path}`, { headers: { 'user-agent': ua, accept: 'text/html' } }), {}, ctx)
+      // `*/*`, the one Accept an AI fetcher gets markdown for: so this proves the UA, host and path exclusions themselves.
+      const r = await worker.fetch(new Request(`https://${host}${path}`, { headers: { 'user-agent': ua, accept: '*/*' } }), {}, ctx)
       expect(r.headers.get('content-type') ?? '', `${ua} ${host}${path}`).not.toMatch(/markdown/)
     }
     // …and the same responder DOES give an agent markdown, so the check above can fail.
-    const agent = await worker.fetch(new Request('https://eno.vn/terms', { headers: { 'user-agent': 'ChatGPT-User/1.0', accept: 'text/html' } }), {}, ctx)
+    const agent = await worker.fetch(new Request('https://eno.vn/terms', { headers: { 'user-agent': 'ChatGPT-User/1.0', accept: '*/*' } }), {}, ctx)
     expect(agent.headers.get('content-type')).toMatch(/markdown/)
+    h.respond = () => ({})
+  })
+
+  it('⛔ an AI fetcher that asks for HTML gets the HTML (ora.ai 2026-11-28: "an agent that asks for HTML should get HTML")', async () => {
+    h.respond = (req: Request) => (req.headers.get('accept') === 'text/markdown' ? { html: '# md', headers: { 'content-type': 'text/markdown; charset=utf-8' } } : {})
+    for (const [ua, accept] of [['Claude-User/1.0', 'text/html'], ['ChatGPT-User/1.0', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'], ['Perplexity-User/1.0', 'TEXT/HTML']]) {
+      const r = await worker.fetch(new Request('https://eno.vn/', { headers: { 'user-agent': ua, accept } }), {}, ctx)
+      expect(r.headers.get('content-type') ?? '', `${ua} ${accept}`).not.toMatch(/markdown/)
+    }
     h.respond = () => ({})
   })
 })

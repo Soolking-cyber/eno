@@ -680,7 +680,7 @@ export const TOOLS: McpTool[] = [
     // The schema bounds STAY here (unlike sync_catalogue): without them this input scored 89/88 on two scans against 92–93
     // with them (Manufact 2026-11-24, round 4). Over MCP the dispatcher's schema check answers first (route.ts safeParse →
     // invalid_input); rowCountArg guards a direct handler call.
-    input: z.object({ listings: z.array(rowItem).min(1).max(BULK_MAX_ROWS).describe('The new listings, one row each; every row succeeds or fails on its own') }),
+    input: z.object({ listings: z.array(rowItem.describe('One new listing')).min(1).max(BULK_MAX_ROWS).describe('The new listings, one per row') }),
     handler: async (auth, args) => {
       rowCountArg(args.listings, BULK_MAX_ROWS)
       const seller = await db.seller.findUnique({ where: { id: auth.sellerId }, select: { id: true, ownerId: true, trustTier: true, trustScore: true } })
@@ -721,7 +721,7 @@ export const TOOLS: McpTool[] = [
       listings: z.array(rowItem.extend({
         externalId: z.string().describe('Your own id (SKU) for the row: how it finds its existing listing, unique within your shop'),
         status: z.string().optional().describe('active, sold or hidden: puts the listing on sale, marks it sold or hides it. Leave it out to keep its status; a new row ignores it'),
-      })).describe('Your catalogue rows, matched to listings by externalId; a known row keeps the fields you leave out'),
+      }).describe('One catalogue row')).describe('Your rows, matched by externalId; a known row keeps fields you leave out'),
     }),
     handler: async (auth, args) => {
       rowCountArg(args.listings, SYNC_MAX_ROWS)

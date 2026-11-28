@@ -896,6 +896,9 @@ function agentWantsMarkdown(request, url) {
   if (request.method !== "GET" && request.method !== "HEAD") return false;
   // The bare page only: `/?category=…` or `/?q=…` is a filtered view the markdown does not describe (commit gate, opus).
   if (!AGENT_MARKDOWN_PATHS.has(url.pathname) || url.search || request.headers.has("rsc")) return false;
+  // ⛔ AN AGENT THAT ASKS FOR HTML GETS HTML (ora.ai 2026-11-28, owner pasted the scan): markdown only when it accepts any
+  // format (`*/*`, or no Accept at all). Naming text/html — alone or in a browser-style list — means it wants the page.
+  if (/text\/html|application\/xhtml/i.test(request.headers.get("accept") || "")) return false;
   return AGENT_MARKDOWN_UA.test(request.headers.get("user-agent") || "");
 }
 
@@ -962,9 +965,10 @@ async function handle(request, env, ctx, url) {
      */
     if (/markdown/i.test(request.headers.get("accept") || "")) return fetch(request);
     /**
-     * ⛔ AN AI FETCHER ASKING FOR A PAGE THE ORIGIN ALSO SERVES AS MARKDOWN GETS THE MARKDOWN (ora.ai agent-ua-markdown,
-     * owner 2026-11-16 "do recommended"): ChatGPT-User, Claude-User and Perplexity-User send Accept: text/html, so the
-     * negotiation above never fires for them. ONLY the three paths the origin negotiates (`/`, `/terms`, `/privacy` —
+     * ⛔ AN AI FETCHER THAT ACCEPTS ANY FORMAT, ASKING FOR A PAGE THE ORIGIN ALSO SERVES AS MARKDOWN, GETS THE MARKDOWN (ora.ai
+     * agent-ua-markdown, owner 2026-11-16 "do recommended"; since 2026-11-28 only when it does not ask for HTML — ora: "an
+     * agent that asks for HTML should get HTML"): ChatGPT-User, Claude-User and Perplexity-User accepting any format (star/star, or no Accept),
+     * which the text/markdown negotiation above does not catch. ONLY the three paths the origin negotiates (`/`, `/terms`, `/privacy` —
      * next.config.ts ACCEPT_MARKDOWN), only on eno.vn's own hosts, and NEVER a crawler: since 2026-11-22 (owner) the AI
      * assistants' crawlers (GPTBot, ClaudeBot, OAI-SearchBot, Claude-SearchBot, PerplexityBot) get the HTML like Googlebot and
      * bingbot (AGENT_MARKDOWN_UA has why). Same bypass as above — never stored here, and the origin's markdown is `no-store`
